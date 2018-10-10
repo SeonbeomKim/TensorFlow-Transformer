@@ -6,9 +6,9 @@ import numpy as np
 import os
 
 class Transformer:
-	def __init__(self, sess, sentence_length=20, output_length=20, voca_size=50000, embedding_size=512, go_idx=1, eos_idx=-2, lr=0.01):
+	def __init__(self, sess, sentence_length=20, target_length=20, voca_size=50000, embedding_size=512, go_idx=1, eos_idx=-2, lr=0.01):
 		self.sentence_length = sentence_length #encoder
-		self.output_length = output_length #decoder
+		self.target_length = target_length #decoder (include eos)
 		self.voca_size = voca_size
 		self.embedding_size = embedding_size
 		self.go_idx = go_idx # <'go'> symbol index
@@ -19,25 +19,28 @@ class Transformer:
 
 		with tf.name_scope("placeholder"):	
 			self.sentence = tf.placeholder(tf.int32, [None, self.sentence_length]) 
-			self.target = tf.placeholder(tf.int32, [None, self.output_length])
-			self.target_sequence_length = tf.placeholder(tf.int32, [None]) 
+			self.sentence_sequence_length = tf.placeholder(tf.int32, [None]) # no padded length
+			self.target = tf.placeholder(tf.int32, [None, self.target_length])
+			self.target_sequence_length = tf.placeholder(tf.int32, [None])  # include eos
 			#self.keep_prob = tf.placeholder(tf.float32)
 			
-
-		with tf.name_scope("eos_masked_target"):
-			target_pad = tf.pad(self.target, [[0,0], [0,1]], 'CONSTANT', constant_values=0) # [N, self.output_length+1]
-			eos_mask = tf.one_hot(
-						self.target_sequence_length, #길이가 x면 index x에 eos symbol이 들어감.
-						self.output_length+1, 
-						on_value=self.eos_idx, 
-						off_value=0
-					) # [N, self.output_length+1]
-			self.eos_masked_target = target_pad + eos_mask # [N, self.output_length+1]
+		with tf.name_scope('masks'):
+			# https://www.tensorflow.org/api_docs/python/tf/sequence_mask
+			self.sentence_mask =  tf.sequence_mask(  # [N, self.sentence_length] 
+						self.sentence_sequence_length, 
+						maxlen=self.sentence_length, 
+						dtype=tf.float32
+					)
+			self.target_mask = tf.sequence_mask( # [N, target_sequence_length] (include eos)
+						self.target_sequence_length, 
+						maxlen=self.target_length, 
+						dtype=tf.float32
+					) 
 
 
 		with tf.name_scope("embedding_table"):
-			self.input_embedding_table = tf.Variable(tf.random_normal([self.voca_size, self.embedding_size])) 
-			self.output_embedding_table = tf.Variable(tf.random_normal([self.voca_size+2, self.embedding_size])) #+2(==eos, go symbol)
+			self.input_embedding_table = tf.Variable(tf.random_normal([self.voca_size-2, self.embedding_size])) #-2(except eos, go symbol) 
+			self.output_embedding_table = tf.Variable(tf.random_normal([self.voca_size, self.embedding_size])) 
 
 
 		with tf.name_scope('encoder'):
@@ -45,7 +48,7 @@ class Transformer:
 
 
 		with tf.name_scope('decoder'):
-			 # [N, self.output_length+1, self.voca_size]
+			 # [N, self.target_length, self.voca_size]
 			with tf.name_scope('train'):
 				self.train_pred = self.train_decoder(self.encoder_embedding)
 		
@@ -54,12 +57,9 @@ class Transformer:
 			
 
 		with tf.name_scope('cost'): 
-			# https://www.tensorflow.org/api_docs/python/tf/sequence_mask
-			masks = tf.sequence_mask(self.target_sequence_length+1, maxlen=self.output_length+1, dtype=tf.float32) # eos 
-
 			# https://www.tensorflow.org/api_docs/python/tf/contrib/seq2seq/sequence_loss #내부에서 weighted softmax cross entropy 동작.
-			self.train_cost = tf.contrib.seq2seq.sequence_loss(self.train_pred, self.eos_masked_target, masks)
-			self.infer_cost = tf.contrib.seq2seq.sequence_loss(self.infer_pred, self.eos_masked_target, masks) 
+			self.train_cost = tf.contrib.seq2seq.sequence_loss(self.train_pred, self.target, self.target_mask)
+			self.infer_cost = tf.contrib.seq2seq.sequence_loss(self.infer_pred, self.target, self.target_mask) 
 	
 
 		with tf.name_scope('optimizer'):
@@ -82,6 +82,9 @@ class Transformer:
 		#first embedding # [N, self.sentence_length, self.embedding_size]
 		embedding = tf.nn.embedding_lookup(self.input_embedding_table, self.sentence) 
 		embedding += self.PE[:self.sentence_length, :]
+		mask = tf.expand_dims(self.sentence_mask, axis=-1) # [N, self.sentence_length, 1]
+		embedding = embedding * mask # except padding
+
 		
 		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
 
@@ -104,30 +107,52 @@ class Transformer:
 
 	def train_decoder(self, encoder_embedding):
 		#encoder_embedding: # [N, self.sentence_length, self.embedding_size]
-	
-		go_input = tf.pad(self.target, [[0,0], [1,0]], 'CONSTANT', constant_values=self.go_idx) # 왼쪽으로 1칸.
-		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.output_length+1, self.embedding_size]
-		decoder_input += self.PE[:self.output_length + 1, :] # +1(==pad)
+		target_slice = self.target[:, :-1] # [N, self.target_length-1]
+		go_input = tf.pad(target_slice, [[0,0], [1,0]], 'CONSTANT', constant_values=self.go_idx) # 왼쪽으로 1칸. [N, self.target_length]
+		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.target_length, self.embedding_size]
+		decoder_input += self.PE[:self.target_length, :]
+		mask = tf.expand_dims(self.target_mask, axis=-1) # [N, self.target_length, 1]
+		decoder_input = decoder_input * mask # except padding and eos
+
 		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
 
 		'''
 		go_input:
-		go_idx idx idx idx idx idx idx  # -1은 embedding_lookup하면 0처리되므로.
-		go_idx idx idx idx idx idx idx
-		go_idx idx idx idx idx idx idx
-		-------------------------------------------------------------
-		decoder_input:
+		[[ go 9  1  3  5  6 13(eos) -1 -1 -1 -1]
+ 		[ go 4  4  9  9  4 13 -1 -1 -1 -1]
+ 		[ go 1  3  4  1  6  2 13 -1 -1 -1]
+ 		[ go 1  1  3  9  1 13 -1 -1 -1 -1]
+ 		[ go 6  9  1  8  1 13 -1 -1 -1 -1]]
+		--------------------------------------------------
+		decoder_input: before mask
 		go_embedding+PE  go_embedding+PE  go_embedding+PE
 		1st_word+PE      1st_word+PE      1st_word+PE
 		2nd_word+PE      2nd_word+PE      2nd_word+PE
+		eos+PE           eos+PE            eos+PE
+		pad+PE           pad+PE            pad+PE
 
 		go_embedding+PE  go_embedding+PE  go_embedding+PE
 		1st_word+PE      1st_word+PE      1st_word+PE
 		2nd_word+PE      2nd_word+PE      2nd_word+PE
+		eos+PE           eos+PE            eos+PE
+		pad+PE           pad+PE            pad+PE
+		--------------------------------------------------
+		decoder_input: after mask
+ 		go_embedding+PE  go_embedding+PE  go_embedding+PE
+		1st_word+PE      1st_word+PE      1st_word+PE
+		2nd_word+PE      2nd_word+PE      2nd_word+PE
+		0                 0                 0
+		0                 0                 0
+
+		go_embedding+PE  go_embedding+PE  go_embedding+PE
+		1st_word+PE      1st_word+PE      1st_word+PE
+		2nd_word+PE      2nd_word+PE      2nd_word+PE
+		0                 0                 0
+		0                 0                 0       
 		'''
 
 		decoder_output = []
-		for index in range(self.output_length+1): # +1(==pad)
+		for index in range(self.target_length):
 			# [N, 1, self.voca_size]
 			output_prob = self.decoder_onestep(
 					decoder_input, 
@@ -138,7 +163,7 @@ class Transformer:
 			decoder_output.append(output_prob) 
 		
 		decoder_output = tf.concat(decoder_output, axis=1) 
-		return decoder_output # [N, self.output_length+1, self.voca_size]
+		return decoder_output # [N, self.target_length, self.voca_size]
 	
 	"""
 	# train decoder과 같음, 결과비교용
@@ -146,8 +171,8 @@ class Transformer:
 		#encoder_embedding: # [N, self.sentence_length, self.embedding_size]
 	
 		go_input = tf.pad(self.target, [[0,0], [1,0]], 'CONSTANT', constant_values=self.go_idx) # 왼쪽으로 1칸.
-		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.output_length+1, self.embedding_size]
-		decoder_input += self.PE[:self.output_length + 1, :] # +1(==pad)
+		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.target_length+1, self.embedding_size]
+		decoder_input += self.PE[:self.target_length + 1, :] # +1(==pad)
 		'''
 		go_input:
 		go_idx idx idx idx idx idx idx  # -1은 embedding_lookup하면 0처리되므로.
@@ -165,7 +190,7 @@ class Transformer:
 		'''
 
 		decoder_output = []
-		for index in range(self.output_length+1): # +1(==pad)
+		for index in range(self.target_length+1): # +1(==pad)
 			# [N, 1, self.voca_size]
 			output_prob = self.decoder_onestep(
 					decoder_input, 
@@ -175,16 +200,17 @@ class Transformer:
 			decoder_output.append(output_prob) 
 		
 		decoder_output = tf.concat(decoder_output, axis=1) 
-		return decoder_output # [N, self.output_length, self.voca_size]
+		return decoder_output # [N, self.target_length, self.voca_size]
 	"""
 	
 	def infer_decoder(self, encoder_embedding):
 		#encoder_embedding: # [N, self.sentence_length, self.embedding_size]
 
 		N = tf.shape(self.sentence)[0]
-		go_input = tf.one_hot(tf.zeros([N], tf.int32), self.output_length+1, on_value=self.go_idx, off_value=-1) # [N, self.output_length+1]
-		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.output_length+1, self.embedding_size]
-		decoder_input += self.PE[:self.output_length + 1, :] # +1(==pad)
+		go_input = tf.one_hot(tf.zeros([N], tf.int32), self.target_length, on_value=self.go_idx, off_value=-1) # [N, self.target_length]
+		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.target_length, self.embedding_size]
+		decoder_input += self.PE[:self.target_length, :] 
+		
 		'''
 		go_input:
 		go_idx -1 -1 -1 -1 -1 -1  # -1은 embedding_lookup하면 0처리되므로.
@@ -202,7 +228,7 @@ class Transformer:
 		'''
 
 		decoder_output = []
-		for index in range(self.output_length+1): # +1(==pad)
+		for index in range(self.target_length): 
 			#decoder_input은 index마다 업데이트됨. # [N, 1, self.voca_size]
 			output_prob = self.decoder_onestep(
 					decoder_input, 
@@ -215,20 +241,20 @@ class Transformer:
 			current_output = tf.argmax(output_prob, axis=-1) # [N, 1]
 
 			#assign index output to index+1 input
-			if index < self.output_length:	
-				#pad_current_output:  [N, self.output_length+1]
+			if index < self.target_length-1:	
+				#pad_current_output:  [N, self.target_length]
 				pad_current_output = tf.pad(
 						current_output, 
-						[[0,0], [index+1, self.output_length+1-index-2]], 
+						[[0,0], [index+1, self.target_length-index-2]], 
 						mode='CONSTANT', 
 						constant_values=-1
 					) 
-				# [N, self.output_length+1, self.embedding_size]
+				# [N, self.target_length, self.embedding_size]
 				embedding_pad_current_output = tf.nn.embedding_lookup(
 						self.output_embedding_table, 
 						pad_current_output
 					) 
-				# [N, self.output_length+1, self.embedding_size]
+				# [N, self.target_length, self.embedding_size]
 				decoder_input += embedding_pad_current_output
 				
 				'''
@@ -259,18 +285,15 @@ class Transformer:
 		decoder_output = tf.concat(decoder_output, axis=1) 
 	
 
-		return decoder_output # [N, self.output_length+1, self.voca_size]
+		return decoder_output # [N, self.target_length, self.voca_size]
 	
 
 
-	def decoder_onestep(self, decoder_input, encoder_embedding, index=0):
-		#first embedding
-		embedding = decoder_input
-		
+	def decoder_onestep(self, decoder_input, encoder_embedding, index=0):		
 		#for index in range(self.sentence_length): 
 		for i in range(6):
 			Masked_Multihead_add_norm = self.multi_head_attention_add_norm(
-						embedding, 
+						decoder_input, 
 						masking_time_step=index,
 						encoder_embedding=encoder_embedding,
 						activation=None,
@@ -336,7 +359,7 @@ class Transformer:
 
 			else: #decoder에서 계산할 때.
 				VK_len = self.sentence_length
-				Q_len = self.output_length + 1
+				Q_len = self.target_length
 				V = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
 				K = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
 				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
@@ -399,8 +422,8 @@ class Transformer:
 	
 	def positional_encoding(self):
 		alpha = 20
-		PE = np.zeros([self.sentence_length + alpha, self.embedding_size])
-		for pos in range(self.sentence_length + alpha): #충분히 크게 만들어두고 slice 해서 쓰자.
+		PE = np.zeros([self.target_length + alpha, self.embedding_size])
+		for pos in range(self.target_length + alpha): #충분히 크게 만들어두고 slice 해서 쓰자.
 			for i in range(self.embedding_size//2): 
 				PE[pos, 2*i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
 				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
@@ -410,7 +433,7 @@ class Transformer:
 		
 '''
 sess = tf.Session()
-tt = Transformer(sess, sentence_length=2, output_length=2, voca_size=4, embedding_size=16)
+tt = Transformer(sess, sentence_length=2, target_length=2, voca_size=4, embedding_size=16)
 a = np.array([[0, 0], [0,0]], np.int32)
 #a = np.array([[4, 2], [1,3]], np.int32)
 #zz = sess.run(tt.test, {tt.sentence:a})
