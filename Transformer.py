@@ -15,21 +15,37 @@ class Transformer:
 		self.eos_idx = eos_idx # <'eos'> symbol index
 		self.lr = lr
 		self.PE = self.positional_encoding() #[self.sentence_length + alpha, self.embedding_siz] #slice해서 쓰자.
-		self.is_train = tf.placeholder(tf.bool)
+		
 
 		with tf.name_scope("placeholder"):	
 			self.sentence = tf.placeholder(tf.int32, [None, self.sentence_length]) 
 			self.target = tf.placeholder(tf.int32, [None, self.output_length])
-			self.eos_target = tf.pad(self.target, [[0,0], [0,1]], 'CONSTANT', constant_values=self.eos_idx) # 오른쪽으로 1칸.
+			self.target_sequence_length = tf.placeholder(tf.int32, [None]) 
+			#self.keep_prob = tf.placeholder(tf.float32)
+			
+
+		with tf.name_scope("eos_masked_target"):
+			target_pad = tf.pad(self.target, [[0,0], [0,1]], 'CONSTANT', constant_values=0) # [N, self.output_length+1]
+			eos_mask = tf.one_hot(
+						self.target_sequence_length, #길이가 x면 index x에 eos symbol이 들어감.
+						self.output_length+1, 
+						on_value=self.eos_idx, 
+						off_value=0
+					) # [N, self.output_length+1]
+			self.eos_masked_target = target_pad + eos_mask # [N, self.output_length+1]
+
 
 		with tf.name_scope("embedding_table"):
 			self.input_embedding_table = tf.Variable(tf.random_normal([self.voca_size, self.embedding_size])) 
 			self.output_embedding_table = tf.Variable(tf.random_normal([self.voca_size+2, self.embedding_size])) #+2(==eos, go symbol)
 
+
 		with tf.name_scope('encoder'):
-			self.encoder_embedding = self.encoder()
+			self.encoder_embedding = self.encoder() # [N, self.sentence_length, self.embedding_size]
+
 
 		with tf.name_scope('decoder'):
+			 # [N, self.output_length+1, self.voca_size]
 			with tf.name_scope('train'):
 				self.train_pred = self.train_decoder(self.encoder_embedding)
 		
@@ -37,25 +53,27 @@ class Transformer:
 				self.infer_pred = self.infer_decoder(self.encoder_embedding)
 			
 
-		'''
-		with tf.name_scope('cost'): # cost is not averaged over a batch! in paper
-			self.cost = tf.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(labels=self.one_hot_answer, logits=self.pred))
+		with tf.name_scope('cost'): 
+			# https://www.tensorflow.org/api_docs/python/tf/sequence_mask
+			masks = tf.sequence_mask(self.target_sequence_length+1, maxlen=self.output_length+1, dtype=tf.float32) # eos 
 
-		with tf.name_scope('optimizer'): #10k dataset은 5epoch마다 lr/2
-			optimizer = tf.train.AdamOptimizer(self.lr, beta1=0.9, beta2=0.98, epsilon=1e-9) #4.2 Training Details. Momentum or weight decay 안씀.
-			#https://www.tensorflow.org/api_docs/python/tf/train/Optimizer#processing_gradients_before_applying_them
-			grads_and_vars = optimizer.compute_gradients(self.cost)
-			#https://www.tensorflow.org/api_docs/python/tf/clip_by_norm
-			clip_grads_and_vars = [(tf.clip_by_norm(gv[0], self.clip_norm), gv[1]) for gv in grads_and_vars]
-			self.minimize = optimizer.apply_gradients(clip_grads_and_vars)
-			#self.minimize = optimizer.minimize(self.cost)
+			# https://www.tensorflow.org/api_docs/python/tf/contrib/seq2seq/sequence_loss #내부에서 weighted softmax cross entropy 동작.
+			self.train_cost = tf.contrib.seq2seq.sequence_loss(self.train_pred, self.eos_masked_target, masks)
+			self.infer_cost = tf.contrib.seq2seq.sequence_loss(self.infer_pred, self.eos_masked_target, masks) 
+	
+
+		with tf.name_scope('optimizer'):
+			optimizer = tf.train.AdamOptimizer(self.lr, beta1=0.9, beta2=0.98, epsilon=1e-9) 
+			self.minimize = optimizer.minimize(self.train_cost)
+
 
 		with tf.name_scope('correct_check'):
-			self.correct_check = tf.reduce_sum(tf.cast(tf.equal(tf.argmax(self.pred, axis=1), self.answer), tf.int32))
+			#self.correct_check = tf.reduce_sum(tf.cast(tf.equal(tf.argmax(self.pred, axis=1), self.answer), tf.int32))
+			pass
 
 		with tf.name_scope("saver"):
 			self.saver = tf.train.Saver(max_to_keep=10000)
-		'''
+		
 		
 		sess.run(tf.global_variables_initializer())
 
@@ -65,10 +83,13 @@ class Transformer:
 		embedding = tf.nn.embedding_lookup(self.input_embedding_table, self.sentence) 
 		embedding += self.PE[:self.sentence_length, :]
 		
+		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
+
 		# stack encoder layer
 		for i in range(6):
 			Multihead_add_norm = self.multi_head_attention_add_norm(
 						embedding, 
+						activation=None,
 						name='encoder'+str(i)
 					) # norm(f(x) + x)  # [N, self.sentence_length, self.embedding_size]
 			encoder_embedding = self.dense_add_norm(
@@ -87,6 +108,8 @@ class Transformer:
 		go_input = tf.pad(self.target, [[0,0], [1,0]], 'CONSTANT', constant_values=self.go_idx) # 왼쪽으로 1칸.
 		decoder_input = tf.nn.embedding_lookup(self.output_embedding_table, go_input) # [N, self.output_length+1, self.embedding_size]
 		decoder_input += self.PE[:self.output_length + 1, :] # +1(==pad)
+		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
+
 		'''
 		go_input:
 		go_idx idx idx idx idx idx idx  # -1은 embedding_lookup하면 0처리되므로.
@@ -115,7 +138,7 @@ class Transformer:
 			decoder_output.append(output_prob) 
 		
 		decoder_output = tf.concat(decoder_output, axis=1) 
-		return decoder_output # [N, self.output_length, self.voca_size]
+		return decoder_output # [N, self.output_length+1, self.voca_size]
 	
 	"""
 	# train decoder과 같음, 결과비교용
@@ -215,28 +238,28 @@ class Transformer:
 					-1 				 current_output 				 -1
 					---------------------------------------------------
 					embedding_pad_current_output:
-					0  				 0                0
+					0                0                0
 					embedding        embedding        embedding
-					0  				 0                0
+					0                0                0
 
-					0  				 0                0
+					0                0                0
 					embedding        embedding        embedding
-					0  				 0                0
+					0                0                0
 					---------------------------------------------------
 					new decoder_input:
 					go_embedding+PE  go_embedding+PE  go_embedding+PE
 					embedding+PE     embedding+PE     embedding+PE
-					0+PE 			 0+PE             0+PE
+					0+PE             0+PE             0+PE
 
 					go_embedding+PE  go_embedding+PE  go_embedding+PE
 					embedding+PE     embedding+PE     embedding+PE
-					0+PE 			 0+PE             0+PE					
+					0+PE             0+PE             0+PE					
 				'''
 
 		decoder_output = tf.concat(decoder_output, axis=1) 
 	
 
-		return decoder_output # [N, self.output_length, self.voca_size]
+		return decoder_output # [N, self.output_length+1, self.voca_size]
 	
 
 
@@ -250,6 +273,7 @@ class Transformer:
 						embedding, 
 						masking_time_step=index,
 						encoder_embedding=encoder_embedding,
+						activation=None,
 						name='self_attention_decoder'+str(i)
 					)
 			#return Masked_Multihead_add_norm
@@ -259,6 +283,7 @@ class Transformer:
 						Masked_Multihead_add_norm, 
 						#masking_time_step=index, 
 						encoder_embedding=encoder_embedding,
+						activation=None,
 						name='ED_attention_decoder'+str(i)
 					) 
 
@@ -274,31 +299,29 @@ class Transformer:
 		FeedForward_LayerNorm = FeedForward_LayerNorm[:, index]  # [N, self.embedding_size] 
 		FeedForward_LayerNorm = tf.expand_dims(FeedForward_LayerNorm, axis=1) # [N, 1, self.embedding_size] 
 		# linear & softmax
-		linear = self.dense_add_norm(
-					FeedForward_LayerNorm, 
-					self.voca_size, 
-					activation=None, 
-					add=False, 
-					norm=False,
-					name="decoder_linear"
-				)
-		softmax = tf.nn.softmax(linear, dim=-1) 
-		return softmax # [N, 1, self.voca_size]
+
+		with tf.variable_scope("decoder_linear", reuse=tf.AUTO_REUSE):
+			linear = tf.layers.dense(FeedForward_LayerNorm, self.voca_size, activation=None)
+
+		#softmax = tf.nn.softmax(linear, dim=-1) 
+		#return softmax # [N, 1, self.voca_size]
+
+		return linear # softmax는 cost 구할 때 seq2seq.sequence_loss에서 계산되므로 안함.
 			
 
-	def dense_add_norm(self, embedding, units, activation, add=True, norm=True, name=None):
-		#변수공유
+	def dense_add_norm(self, embedding, units, activation, name=None):
+		# FFN(x) = max(0, x*W1+b1)*W2 + b2
+		#변수공유  
 		with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
-
-			dense = tf.layers.dense(embedding, units=units, activation=activation)
-			if add is True:
-				dense += embedding	
-			if norm is True:
-				dense = tf.contrib.layers.layer_norm(dense)
+			inner_layer = tf.layers.dense(embedding, units=2048, activation=activation)
+			dense = tf.layers.dense(inner_layer, units=units, activation=None)
+			dense += embedding
+			dense = tf.contrib.layers.layer_norm(dense)
+			
 			return dense 
 
 
-	def multi_head_attention_add_norm(self, embedding, masking_time_step=-1, encoder_embedding=None, name=None):
+	def multi_head_attention_add_norm(self, embedding, masking_time_step=-1, encoder_embedding=None, activation=None, name=None):
 		#변수공유
 		with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
 			
@@ -307,16 +330,16 @@ class Transformer:
 			if encoder_embedding is None: #encoder에서 계산할 때.
 				VK_len = self.sentence_length
 				Q_len = self.sentence_length
-				V = tf.layers.dense(embedding, units=self.embedding_size, activation=None) # [N, VK_len, self.embedding_size]
-				K = tf.layers.dense(embedding, units=self.embedding_size, activation=None) # [N, VK_len, self.embedding_size]
-				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=None) # [N, Q_len, self.embedding_size]
+				V = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
+				K = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
+				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
 
 			else: #decoder에서 계산할 때.
 				VK_len = self.sentence_length
 				Q_len = self.output_length + 1
-				V = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=None) # [N, VK_len, self.embedding_size]
-				K = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=None) # [N, VK_len, self.embedding_size]
-				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=None) # [N, Q_len, self.embedding_size]
+				V = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
+				K = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
+				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
 
 
 			# linear 결과를 8등분하고 연산에 지장을 주지 않도록 batch화 시킴.
@@ -341,8 +364,7 @@ class Transformer:
 					# 0만 남은 뒷부분에 -inf 를 더해주기위한 add_mask 생성 # 0..0||-inf..-inf
 					mask_add = np.full([Q_len, VK_len], -np.inf, np.float32) # batch 단위는 broadcasting 연산 됨.
 					mask_add[:, :masking_time_step+1] = 0
-					#print(mask_mul,'\n')
-					#print(mask_add,'\n\n')
+
 					# masking 연산
 					score = (score * mask_mul) + mask_add
 
@@ -368,7 +390,7 @@ class Transformer:
 			attention = tf.split(value=attention, num_or_size_splits=8, axis=0) # [N, Q_len, self.embedding_size/8]이 8개 존재.
 			concat = tf.concat(attention, axis=-1) # [N, Q_len, self.embedding_size]
 
-			Multihead = tf.layers.dense(concat, units=self.embedding_size, activation=None) # [N, Q_len, self.embedding_size]
+			Multihead = tf.layers.dense(concat, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
 			Multihead += embedding # add
 			Multihead = tf.contrib.layers.layer_norm(Multihead) #layernorm
 			return Multihead # [N, self.sentence_length, self.embedding_size]
@@ -385,22 +407,23 @@ class Transformer:
 		
 		return PE #[self.sentence_length, self.embedding_siz]
 	
-sess = tf.Session()
 		
-
+'''
+sess = tf.Session()
 tt = Transformer(sess, sentence_length=2, output_length=2, voca_size=4, embedding_size=16)
-a = np.array([[4, 2], [1,3]], np.int32)
+a = np.array([[0, 0], [0,0]], np.int32)
+#a = np.array([[4, 2], [1,3]], np.int32)
 #zz = sess.run(tt.test, {tt.sentence:a})
-zz = sess.run(tt.encoder_embedding, {tt.sentence:a, tt.is_train:True})
-pp = sess.run(tt.train_pred, {tt.sentence:a, tt.target:a, tt.is_train:True})
-qq = sess.run(tt.infer_pred, {tt.sentence:a, tt.target:a, tt.is_train:True})
+zz = sess.run(tt.encoder_embedding, {tt.sentence:a})
+pp = sess.run(tt.train_pred, {tt.sentence:a, tt.target:a})
+qq = sess.run(tt.infer_pred, {tt.sentence:a, tt.target:a})
 #qq = sess.run(tt.pred, {tt.sentence:a, tt.is_train:False})
 print(zz.shape)
 print('train_pred\n',pp, '\n')
 print('infer_pred\n',qq, '\n')
 print(tt.PE[1, :4])
 
-
+'''
 #print(zz.shape)
 
 
