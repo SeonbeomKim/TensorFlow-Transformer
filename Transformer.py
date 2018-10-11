@@ -48,17 +48,37 @@ class Transformer:
 
 
 		with tf.name_scope('decoder'):
-			# [N, self.target_length, self.voca_size]
 			with tf.name_scope('train'):
-				self.train_pred = self.train_decoder(self.encoder_embedding)
+				self.train_pred_embedding = self.train_decoder(self.encoder_embedding) # [N, self.target_length, self.voca_size]
+				self.train_pred = tf.argmax(self.train_pred_embedding, axis=-1, output_type=tf.int32) # [N, self,target_length]
+				# find first eos index  ex [5, 6, 4, 5, 5]
+				self.train_first_eos = tf.argmax( tf.cast( tf.equal(self.train_pred, self.eos_idx), tf.int32 ), axis=-1) # [N]
+				self.train_eos_mask = tf.sequence_mask(
+						self.train_first_eos,
+						maxlen=self.target_length,
+						dtype=tf.int32
+					)
+				self.train_pred_except_eos = self.train_pred * self.train_eos_mask
+				self.train_pred_except_eos += (self.train_eos_mask - 1) # excepted position value is -1
+
 			with tf.name_scope('inference'):
-				self.infer_pred = self.infer_decoder(self.encoder_embedding)
+				self.infer_pred_embedding = self.infer_decoder(self.encoder_embedding) # [N, self.target_length, self.voca_size]
+				self.infer_pred = tf.argmax(self.infer_pred_embedding, axis=-1, output_type=tf.int32) # [N, self,target_length]
+				# find first eos index  ex [5, 6, 4, 5, 5]
+				self.infer_first_eos = tf.argmax( tf.cast( tf.equal(self.infer_pred, self.eos_idx), tf.int32 ), axis=-1) # [N]
+				self.infer_eos_mask = tf.sequence_mask(
+						self.infer_first_eos,
+						maxlen=self.target_length,
+						dtype=tf.int32
+					)
+				self.infer_pred_except_eos = self.infer_pred * self.infer_eos_mask
+				self.infer_pred_except_eos += (self.infer_eos_mask - 1) # excepted position value is -1
 			
 
 		with tf.name_scope('cost'): 
 			# https://www.tensorflow.org/api_docs/python/tf/contrib/seq2seq/sequence_loss #내부에서 weighted softmax cross entropy 동작.
-			self.train_cost = tf.contrib.seq2seq.sequence_loss(self.train_pred, self.target, self.target_mask)
-			self.infer_cost = tf.contrib.seq2seq.sequence_loss(self.infer_pred, self.target, self.target_mask) 
+			self.train_cost = tf.contrib.seq2seq.sequence_loss(self.train_pred_embedding, self.target, self.target_mask)
+			self.infer_cost = tf.contrib.seq2seq.sequence_loss(self.infer_pred_embedding, self.target, self.target_mask) 
 	
 
 		with tf.name_scope('optimizer'):
@@ -67,12 +87,18 @@ class Transformer:
 
 
 		with tf.name_scope('correct_check'):
-			#self.correct_check = tf.reduce_sum(tf.cast(tf.equal(tf.argmax(self.pred, axis=1), self.answer), tf.int32))
-			pass
+			check_equal_position = tf.cast(tf.equal(self.train_pred_except_eos, self.infer_pred_except_eos), dtype=tf.float32) # [N, self.target_length]
+			
+			#if use mean, 0.9999999 is equal to 1, so use sum.
+			check_equal_position_sum = tf.reduce_sum(check_equal_position, axis=-1) # [N]
+
+			#if correct: "check_equal_position_sum" value is equal to self.target_length
+			correct_check = tf.cast(tf.equal(check_equal_position_sum, self.target_length), tf.float32) # [N]
+			self.correct_count = tf.reduce_sum(correct_check) # scalar
+
 
 		with tf.name_scope("saver"):
 			self.saver = tf.train.Saver(max_to_keep=10000)
-		
 		
 		sess.run(tf.global_variables_initializer())
 
@@ -84,7 +110,6 @@ class Transformer:
 		mask = tf.expand_dims(self.sentence_mask, axis=-1) # [N, self.sentence_length, 1]
 		embedding = embedding * mask # except padding
 
-		
 		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
 
 		# stack encoder layer
