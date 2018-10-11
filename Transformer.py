@@ -289,22 +289,56 @@ class Transformer:
 	
 
 
-	def decoder_onestep(self, decoder_input, encoder_embedding, index=0):		
-		#for index in range(self.sentence_length): 
+	def decoder_onestep(self, decoder_input, encoder_embedding, index=None):
+		# decoder_input: [N, self.target_length, self.embedding_size]
+	
+		if index is not None:
+			
+			# decoder_input masking
+			decoder_input_mask = tf.sequence_mask( # [N, target_sequence_length] 
+						tf.fill([tf.shape(decoder_input)[0]], index), # [index index index ... index] 
+						maxlen=self.target_length, 
+						dtype=tf.float32
+					) 
+			decoder_input_mask = tf.expand_dims(decoder_input_mask, axis=-1)  # [N, target_sequence_length, 1] 
+			decoder_input = decoder_input * decoder_input_mask
+			
+			# self_attention mask
+			
+			# embedding [N, Q_len, self.embedding_size]
+
+			# decoder_input mask
+			#decoder_input_mask = np.zeros([self.target_length, self.embedding_size], np.float32) # batch 단위는 broadcasting 연산 됨.
+			#decoder_input_mask[:index+1, :] = 1
+			#embedding = embedding * embed_mask_mul 
+
 		for i in range(6):
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+
 			Masked_Multihead_add_norm = self.multi_head_attention_add_norm(
 						decoder_input, 
-						masking_time_step=index,
-						encoder_embedding=encoder_embedding,
+						index=index,
 						activation=None,
 						name='self_attention_decoder'+str(i)
 					)
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+			#this is not self_attention this is encoder decoder attention
+
 			#return Masked_Multihead_add_norm
 
 			#Encoder Decoder attention
 			ED_Multihead_add_norm = self.multi_head_attention_add_norm(
 						Masked_Multihead_add_norm, 
-						#masking_time_step=index, 
 						encoder_embedding=encoder_embedding,
 						activation=None,
 						name='ED_attention_decoder'+str(i)
@@ -344,71 +378,74 @@ class Transformer:
 			return dense 
 
 
-	def multi_head_attention_add_norm(self, embedding, masking_time_step=-1, encoder_embedding=None, activation=None, name=None):
+	def multi_head_attention_add_norm(self, embedding, index=None, encoder_embedding=None, activation=None, name=None):
 		#변수공유
 		with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
 			
 			# layers dense는 배치(N)별로 동일하게 연산됨.		
 			# for문으로 8번 돌릴 필요 없이 embedding_size 만큼 만들고 8등분해서 연산하면 됨.
-			if encoder_embedding is None: #encoder에서 계산할 때.
-				VK_len = self.sentence_length
-				Q_len = self.sentence_length
-				V = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
-				K = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
-				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
-
-			else: #decoder에서 계산할 때.
-				VK_len = self.sentence_length
-				Q_len = self.target_length
-				V = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
-				K = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, VK_len, self.embedding_size]
-				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, Q_len, self.embedding_size]
+			if encoder_embedding is None: #encoder(multi-head attention) or decoder(masked multi_head_attention)에서 계산할 때.
+				#VK_len = self.sentence_length
+				#Q_len = self.sentence_length
+				V = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, ?, self.embedding_size]
+				K = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, ?, self.embedding_size]
+				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, ?, self.embedding_size]
+				
+			else: #decoder(multi_head_attention == encoder decoder attention)에서 계산할 때.
+				#VK_len = self.sentence_length
+				#Q_len = self.target_length
+				V = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, ?, self.embedding_size]
+				K = tf.layers.dense(encoder_embedding, units=self.embedding_size, activation=activation) # [N, ?, self.embedding_size]
+				Q = tf.layers.dense(embedding, units=self.embedding_size, activation=activation) # [N, self.target_length, self.embedding_size]
 
 
 			# linear 결과를 8등분하고 연산에 지장을 주지 않도록 batch화 시킴.
-			V = tf.split(value=V, num_or_size_splits=8, axis=-1) #8등분. [N, VK_len, self.embedding_size/8]이 8개 존재.
-			V = tf.concat(V, axis=0) # [8*N, VK_len, self.embedding_size/8]
+			V = tf.split(value=V, num_or_size_splits=8, axis=-1) #8등분. [N, ?, self.embedding_size/8]이 8개 존재.
+			V = tf.concat(V, axis=0) # [8*N, ?, self.embedding_size/8]
 			K = tf.split(value=K, num_or_size_splits=8, axis=-1) 
 			K = tf.concat(K, axis=0) 
 			Q = tf.split(value=Q, num_or_size_splits=8, axis=-1) 
 			Q = tf.concat(Q, axis=0) 
 			
-			score = tf.matmul(Q, tf.transpose(K, [0, 2, 1])) / tf.sqrt(self.embedding_size/8.0) # [8*N, Q_len, VK_len]
+			score = tf.matmul(Q, tf.transpose(K, [0, 2, 1])) / tf.sqrt(self.embedding_size/8.0) # [8*N, ?, ?]
 		
 			#masking
-			if masking_time_step != -1 :     # 마지막 masking_time_step == (time_length-1)	
+			if index is not None :   
 			#	print(name, 'run')
 				#return score
 				with tf.name_scope("score_masking"):
-					# masking_time_step 부분만 남기고 뒷부분은 0으로 처리하기위한 mul_mask(1..1||0..0) 생성 해서 곱할것임.
-					mask_mul = np.zeros([Q_len, VK_len], np.float32) # batch 단위는 broadcasting 연산 됨.
-					mask_mul[:, :masking_time_step+1] = 1
+					'''
+					if Q: [[A, B], [C, D]], K: [[a, b], [c, d]], and V: [[q, w], [e, r]
+					Q*K.T = [[Aa + Bb, Ac + Bd], [Ca + Db, Cc + Dd]]
 
-					# 0만 남은 뒷부분에 -inf 를 더해주기위한 add_mask 생성 # 0..0||-inf..-inf
-					mask_add = np.full([Q_len, VK_len], -np.inf, np.float32) # batch 단위는 broadcasting 연산 됨.
-					mask_add[:, :masking_time_step+1] = 0
+					if index: 1 
+						Q: [[A, B], [0, 0]], K: [[a, b], [0, 0]], and V: [[q, w], [0, 0] (Because of decoder_input mask)
+						Q*K.T = [[Aa + Bb, 0], [0, 0]]
+						we should apply mask to Q*K.T
+						mask Q*K.T = [[Aa + Bb, -inf], [-inf, -inf]] => softmax [[1, 0], [0.5, 0.5]] and multiply by 0 => [[1, 0], [0, 0]]
+						(multiply, softmax and mask Q*K.T) * (V) = [[q, w], [0, 0]]
+					'''
+					mask_add = tf.pad(
+								tf.fill([index+1, index+1], 1.),
+								tf.constant([[0,  self.target_length-(index+1)], [0, self.target_length-(index+1)]]),
+								'CONSTANT',
+								constant_values= -2**32 #if -np.inf: softmax result is nan
+							)
+					
+					score = score + mask_add # [[Aa + Bb, -inf], [-inf, -inf]]
+					softmax = tf.nn.softmax(score, dim=2) # [[1, 0], [0.5, 0.5]]
 
-					# masking 연산
-					score = (score * mask_mul) + mask_add
+					mask_mul = tf.pad(
+								tf.fill([index+1, index+1], 1.),
+								tf.constant([[0,  self.target_length-(index+1)], [0, self.target_length-(index+1)]]),
+								'CONSTANT',
+								constant_values= 0 
+							)
+					softmax = softmax * mask_mul # [[1, 0], [0, 0]]
 
-				with tf.name_scope("embedding_masking"):
-					# embedding [N, Q_len, self.embedding_size]
-					mask_mul = np.zeros([Q_len, self.embedding_size], np.float32) # batch 단위는 broadcasting 연산 됨.
-					mask_mul[:masking_time_step+1, :] = 1
-					embedding = embedding * mask_mul 
-
-				'''
-				#test
+			else:
 				softmax = tf.nn.softmax(score, dim=2) # [8*N, Q_len, VK_len]
-				attention = tf.matmul(softmax, V) # [8*N, Q_len, self.embedding_size/8]		
-				attention = tf.split(value=attention, num_or_size_splits=8, axis=0) # [N, Q_len, self.embedding_size/8]이 8개 존재.
-				concat = tf.concat(attention, axis=-1) # [N, Q_len, self.embedding_size]
-				Multihead = tf.layers.dense(concat, units=self.embedding_size, activation=None) # [N, Q_len, self.embedding_size]
-				Multihead += embedding # add #이부분이 차이를 유발함. embedding도 masking 필요.
-				return Multihead
-				###
-				'''
-			softmax = tf.nn.softmax(score, dim=2) # [8*N, Q_len, VK_len]
+
 			attention = tf.matmul(softmax, V) # [8*N, Q_len, self.embedding_size/8]			
 			attention = tf.split(value=attention, num_or_size_splits=8, axis=0) # [N, Q_len, self.embedding_size/8]이 8개 존재.
 			concat = tf.concat(attention, axis=-1) # [N, Q_len, self.embedding_size]
