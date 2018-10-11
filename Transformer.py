@@ -51,6 +51,7 @@ class Transformer:
 			with tf.name_scope('train'):
 				self.train_pred_embedding = self.train_decoder(self.encoder_embedding) # [N, self.target_length, self.voca_size]
 				self.train_pred = tf.argmax(self.train_pred_embedding, axis=-1, output_type=tf.int32) # [N, self,target_length]
+				
 				# find first eos index  ex [5, 6, 4, 5, 5]
 				self.train_first_eos = tf.argmax( tf.cast( tf.equal(self.train_pred, self.eos_idx), tf.int32 ), axis=-1) # [N]
 				self.train_eos_mask = tf.sequence_mask(
@@ -61,9 +62,11 @@ class Transformer:
 				self.train_pred_except_eos = self.train_pred * self.train_eos_mask
 				self.train_pred_except_eos += (self.train_eos_mask - 1) # excepted position value is -1
 
+
 			with tf.name_scope('inference'):
 				self.infer_pred_embedding = self.infer_decoder(self.encoder_embedding) # [N, self.target_length, self.voca_size]
 				self.infer_pred = tf.argmax(self.infer_pred_embedding, axis=-1, output_type=tf.int32) # [N, self,target_length]
+				
 				# find first eos index  ex [5, 6, 4, 5, 5]
 				self.infer_first_eos = tf.argmax( tf.cast( tf.equal(self.infer_pred, self.eos_idx), tf.int32 ), axis=-1) # [N]
 				self.infer_eos_mask = tf.sequence_mask(
@@ -87,11 +90,19 @@ class Transformer:
 
 
 		with tf.name_scope('correct_check'):
-			check_equal_position = tf.cast(tf.equal(self.train_pred_except_eos, self.infer_pred_except_eos), dtype=tf.float32) # [N, self.target_length]
+			# target except eos
+			target_eos_mask =  tf.sequence_mask( 
+					self.target_sequence_length - 1,  #except eos
+					maxlen=self.target_length, 
+					dtype=tf.int32
+				) 
+			target_except_eos = self.target * target_eos_mask # except eos and pad
+			target_except_eos += (target_eos_mask - 1) #  eos and pad position value is -1
 			
+			# correct check
+			check_equal_position = tf.cast(tf.equal(target_except_eos, self.infer_pred_except_eos), dtype=tf.float32) # [N, self.target_length]
 			#if use mean, 0.9999999 is equal to 1, so use sum.
 			check_equal_position_sum = tf.reduce_sum(check_equal_position, axis=-1) # [N]
-
 			#if correct: "check_equal_position_sum" value is equal to self.target_length
 			correct_check = tf.cast(tf.equal(check_equal_position_sum, self.target_length), tf.float32) # [N]
 			self.correct_count = tf.reduce_sum(correct_check) # scalar
