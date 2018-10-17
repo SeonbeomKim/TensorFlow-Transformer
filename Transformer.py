@@ -8,7 +8,8 @@ import os
 #tf.set_random_seed(777)
 
 class Transformer:
-	def __init__(self, sess, sentence_length=20, target_length=20, voca_size=50000, embedding_size=512, go_idx=1, eos_idx=-2, lr=0.01):
+	def __init__(self, sess, sentence_length, target_length, voca_size, embedding_size, go_idx, eos_idx, lr, infer_helper):
+		self.sess = sess
 		self.sentence_length = sentence_length #encoder
 		self.target_length = target_length #decoder (include eos)
 		self.voca_size = voca_size
@@ -17,7 +18,8 @@ class Transformer:
 		self.eos_idx = eos_idx # <'eos'> symbol index
 		self.lr = lr
 		self.PE = self.positional_encoding() #[self.target_length + alpha, self.embedding_siz] #slice해서 쓰자.
-		
+		self.infer_helper = infer_helper
+
 		with tf.name_scope("placeholder"):	
 			self.sentence = tf.placeholder(tf.int32, [None, self.sentence_length]) 
 			self.sentence_sequence_length = tf.placeholder(tf.int32, [None]) # no padded length
@@ -86,13 +88,15 @@ class Transformer:
 
 			with tf.name_scope('inference'):
 				# inference_output pred
-				self.infer_pred_embedding = self.infer_helper(self.encoder_embedding) # [N, self.target_length, self.voca_size]
-				self.infer_pred = tf.argmax(
-							self.infer_pred_embedding, 
-							axis=-1, 
-							output_type=tf.int32
-						) # [N, self,target_length]
-				
+				self.infer_pred, self.infer_embedding = self.infer_helper.decode( 
+							decoder_fn = self.decoder, 
+							encoder_embedding = self.encoder_embedding, 
+							target_length = self.target_length, 
+							output_embedding_table = self.output_embedding_table,
+							PE = self.PE, 
+							go_idx = self.go_idx
+						)# infer_pred: [N, self.target_length], infer_embedding: [N, self.target_length, self.voca_size]
+							
 				# inference_output masking(remove eos, pad)
 				self.infer_first_eos = tf.argmax(
 							tf.cast( tf.equal(self.infer_pred, self.eos_idx), tf.int32), 
@@ -115,11 +119,11 @@ class Transformer:
 						self.target_mask
 					)
 			self.infer_cost = tf.contrib.seq2seq.sequence_loss(
-						self.infer_pred_embedding, 
+						self.infer_embedding, 
 						self.target, 
 						self.target_mask
 					) 
-	
+
 
 		with tf.name_scope('optimizer'):
 			optimizer = tf.train.AdamOptimizer(self.lr, beta1=0.9, beta2=0.98, epsilon=1e-9) 
@@ -172,7 +176,7 @@ class Transformer:
 		#embedding = tf.nn.dropout(embedding, keep_prob=self.keep_prob)
 
 		# stack encoder layer
-		for i in range(6):
+		for i in range(1): #6
 			# Multi-Head Attention
 			Multihead_add_norm = self.multi_head_attention_add_norm(
 						query=encoder_input,
@@ -240,105 +244,12 @@ class Transformer:
 		'''
 		
 
-	def infer_helper(self, encoder_embedding):
-		# encoder_embedding: [N, self.sentence_length, self.embedding_size]
-
-		# decoder input preprocessing
-		N = tf.shape(self.sentence)[0] # batchsize
-		go_input = tf.one_hot(
-					tf.zeros([N], tf.int32), 
-					self.target_length, 
-					on_value=self.go_idx, 
-					off_value=-1
-				) # [N, self.target_length]
-		decoder_input = tf.nn.embedding_lookup(
-					self.output_embedding_table, 
-					go_input
-				) # [N, self.target_length, self.embedding_size]
-		decoder_input += self.PE[:self.target_length, :] 
-		
-
-		# greedy decoding
-		decoder_output = []
-		for index in range(self.target_length): 
-			
-			# get decoder_output of current postion
-			current_decoder_output = self.decoder(
-						decoder_input, #decoder_input은 index마다 업데이트됨. 
-						encoder_embedding, 
-					) # [N, self.target_length, self.voca_size]
-
-			current_decoder_output = current_decoder_output[:, index, :] # [N, self.voca_size]
-			current_decoder_output = tf.expand_dims(current_decoder_output, axis=1) # [N, 1, self.voca_size]
-			decoder_output.append(current_decoder_output) 
-			argmax_current_output = tf.argmax(current_decoder_output, axis=-1) # [N, 1]
-
-			#Assign argmax_current_output(current position) to decoder_input(next position)
-			if index < self.target_length-1:	
-				pad_argmax_current_output = tf.pad( 
-							argmax_current_output, 
-							[[0,0], [index+1, self.target_length-index-2]], 
-							mode='CONSTANT', 
-							constant_values=-1
-						) # [N, self.target_length]
-				
-				embedding_pad_argmax_current_output = tf.nn.embedding_lookup(
-							self.output_embedding_table, 
-							pad_argmax_current_output
-						) # [N, self.target_length, self.embedding_size]
-				
-				decoder_input += embedding_pad_argmax_current_output # [N, self.target_length, self.embedding_size]
-
-		# concat all position of decoder_output
-		decoder_output = tf.concat(decoder_output, axis=1) # [N, self.target_length, self.voca_size]
-		return decoder_output 				
-		'''
-		go_input:
-			go_idx -1 -1 -1 -1 -1 -1  # -1은 embedding_lookup하면 0처리되므로.
-			go_idx -1 -1 -1 -1 -1 -1
-			go_idx -1 -1 -1 -1 -1 -1
-		-------------------------------------------------------------
-		initial decoder_input:
-			go_embedding+PE  go_embedding+PE  go_embedding+PE
-			0+PE             0+PE             0+PE
-			0+PE             0+PE             0+PE
-
-			go_embedding+PE  go_embedding+PE  go_embedding+PE
-			0+PE             0+PE             0+PE
-			0+PE             0+PE             0+PE
-		-------------------------------------------------------------			
-		if index==0:
-			pad_argmax_current_output:  
-				-1 				 current_output 				 -1
-				-1 				 current_output 				 -1
-			---------------------------------------------------
-			embedding_pad_argmax_current_output:
-				0                0                0
-				embedding        embedding        embedding
-				0                0                0
-
-				0                0                0
-				embedding        embedding        embedding
-				0                0                0
-			---------------------------------------------------
-			new decoder_input:
-				go_embedding+PE  go_embedding+PE  go_embedding+PE
-				embedding+PE     embedding+PE     embedding+PE
-				0+PE             0+PE             0+PE
-
-				go_embedding+PE  go_embedding+PE  go_embedding+PE
-				embedding+PE     embedding+PE     embedding+PE
-				0+PE             0+PE             0+PE					
-		'''
-	
-
-
 	def decoder(self, decoder_input, encoder_embedding):
 		# decoder_input: [N, self.target_length, self.embedding_size]
 		# encoder_embedding: [N, self.sentence_length, self.embedding_size]
 	
 		# stack decoder layer
-		for i in range(6):
+		for i in range(1):
 			# Masked Multi-Head Attention
 			Masked_Multihead_add_norm = self.multi_head_attention_add_norm(
 						query=decoder_input, 
@@ -476,23 +387,4 @@ class Transformer:
 				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
 		
 		return PE #[self.sentence_length, self.embedding_siz]
-	
-		
-'''
-sess = tf.Session()
-tt = Transformer(sess, sentence_length=2, target_length=5, voca_size=10, embedding_size=16)
-#a = np.array([[1, 1], [0,0]], np.int32)
-
-a = np.array([[8, 5, 3, 3, 3], [8,5, 3, 3, 3]], np.int32)
-#a = np.array([[8, 5, 3, 3, 3], [7,4, 3, 3, 3]], np.int32)
-sen = np.array([[8, 5], [7,4]], np.int32)
-pp = sess.run(tt.train_pred_embedding, {tt.sentence:sen, tt.target:a, tt.sentence_sequence_length:[2, 2], tt.target_sequence_length:[3, 3]})
-qq = sess.run(tt.infer_pred_embedding, {tt.sentence:sen, tt.sentence_sequence_length:[2, 2]})
-#qq = sess.run(tt.pred, {tt.sentence:a, tt.is_train:False})
-print('train_pred\n',pp, '\n')
-print('infer_pred\n',qq, '\n')
-'''
-#print(zz.shape)
-
-
 	
