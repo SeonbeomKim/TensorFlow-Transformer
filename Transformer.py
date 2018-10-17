@@ -168,7 +168,7 @@ class Transformer:
 					self.embedding_table,
 					self.sentence
 				) # [N, self.sentence_length, self.embedding_size]
-		if self.embedding_scale is True:
+		if self.is_embedding_scale is True:
 			encoder_input /= self.embedding_size**0.5
 		# Add Position Encoding
 		encoder_input += self.PE[:self.sentence_length, :] 
@@ -224,7 +224,7 @@ class Transformer:
 					self.embedding_table, 
 					go_input
 				) # [N, self.target_length, self.embedding_size]
-		if self.embedding_scale is True:
+		if self.is_embedding_scale is True:
 			decoder_input /= self.embedding_size**0.5
 		# Add Position Encoding
 		decoder_input += self.PE[:self.target_length, :]
