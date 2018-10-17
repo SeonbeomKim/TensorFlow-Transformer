@@ -10,20 +10,20 @@ import os
 
 class Transformer:
 	def __init__(self, sess, sentence_length, target_length, voca_size, 
-					embedding_size, is_embedding_scale, go_idx, eos_idx, lr, infer_helper):
+					embedding_size, is_embedding_scale, encoder_decoder_stack, go_idx, eos_idx, lr, infer_helper):
 		self.sess = sess
 		self.sentence_length = sentence_length #encoder
 		self.target_length = target_length #decoder (include eos)
 		self.voca_size = voca_size
 		self.embedding_size = embedding_size
 		self.is_embedding_scale = is_embedding_scale # True or False
+		self.encoder_decoder_stack = encoder_decoder_stack
 		self.go_idx = go_idx # <'go'> symbol index
 		self.eos_idx = eos_idx # <'eos'> symbol index
 		self.lr = lr
 		self.PE = self.positional_encoding() #[self.target_length + alpha, self.embedding_siz] #slice해서 쓰자.
 		self.infer_helper = infer_helper
 		self.label_smoothing = 0.1 # if 1.0, then one-hot encooding
-		self.encoder_decoder_stack = 1
 
 		with tf.name_scope("placeholder"):	
 			self.sentence = tf.placeholder(tf.int32, [None, self.sentence_length]) 
