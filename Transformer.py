@@ -8,12 +8,15 @@ import os
 #tf.set_random_seed(777)
 
 class Transformer:
-	def __init__(self, sess, sentence_length, target_length, voca_size, embedding_size, go_idx, eos_idx, lr, infer_helper):
+	def __init__(self, sess, sentence_length, target_length, voca_size, 
+					embedding_size, embedding_scale, go_idx, eos_idx, lr, infer_helper):
+		
 		self.sess = sess
 		self.sentence_length = sentence_length #encoder
 		self.target_length = target_length #decoder (include eos)
 		self.voca_size = voca_size
 		self.embedding_size = embedding_size
+		self.embedding_scale = embedding_scale # True or False
 		self.go_idx = go_idx # <'go'> symbol index
 		self.eos_idx = eos_idx # <'eos'> symbol index
 		self.lr = lr
@@ -25,7 +28,8 @@ class Transformer:
 			self.sentence_sequence_length = tf.placeholder(tf.int32, [None]) # no padded length
 			self.target = tf.placeholder(tf.int32, [None, self.target_length])
 			self.target_sequence_length = tf.placeholder(tf.int32, [None])  # include eos
-			#self.keep_prob = tf.placeholder(tf.float32)
+			# dropout (each sublayers before add and norm)  and  (sums of the embeddings and the PE)
+			self.keep_prob = tf.placeholder(tf.float32) 
 			
 		with tf.name_scope('masks'): 
 			# https://www.tensorflow.org/api_docs/python/tf/sequence_mask
@@ -49,13 +53,7 @@ class Transformer:
 
 
 		with tf.name_scope("embedding_table"):
-			self.input_embedding_table = tf.Variable(
-						tf.random_normal([self.voca_size-2, self.embedding_size])
-					) #-2(except eos, go symbol) 
-
-			self.output_embedding_table = tf.Variable(
-						tf.random_normal([self.voca_size, self.embedding_size])
-					) 
+			self.embedding_table = tf.Variable(	tf.random_normal([self.voca_size, self.embedding_size])	) 
 
 
 		with tf.name_scope('encoder'):
@@ -85,16 +83,16 @@ class Transformer:
 				self.train_pred_except_eos = self.train_pred * self.train_eos_mask
 				self.train_pred_except_eos += (self.train_eos_mask - 1) # the value of the masked position is -1
 
-
 			with tf.name_scope('inference'):
 				# inference_output pred
 				self.infer_pred, self.infer_embedding = self.infer_helper.decode( 
 							decoder_fn = self.decoder, 
 							encoder_embedding = self.encoder_embedding, 
 							target_length = self.target_length, 
-							output_embedding_table = self.output_embedding_table,
 							PE = self.PE, 
-							go_idx = self.go_idx
+							go_idx = self.go_idx,
+							embedding_table = self.embedding_table,
+							embedding_scale = self.embedding_scale # True or False
 						)# infer_pred: [N, self.target_length], infer_embedding: [N, self.target_length, self.voca_size]
 							
 				# inference_output masking(remove eos, pad)
@@ -164,12 +162,21 @@ class Transformer:
 		sess.run(tf.global_variables_initializer())
 
 
+
 	def encoder(self):
+		# embedding lookup and scale
 		encoder_input = tf.nn.embedding_lookup(
-					self.input_embedding_table,
+					self.embedding_table,
 					self.sentence
 				) # [N, self.sentence_length, self.embedding_size]
+		if self.embedding_scale is True:
+			encoder_input /= self.embedding_size**0.5
+
 		encoder_input += self.PE[:self.sentence_length, :] 
+
+		#drop out 
+		encoder_input = tf.nn.dropout(encoder_input, keep_prob=self.keep_prob)
+		
 		mask = tf.expand_dims(self.sentence_mask, axis=-1) # [N, self.sentence_length, 1]
 		encoder_input = encoder_input * mask # except padding
 
@@ -208,12 +215,20 @@ class Transformer:
 					'CONSTANT', 
 					constant_values=self.go_idx
 				) # [N, self.target_length]
+
+		# embedding lookup and scale
 		decoder_input = tf.nn.embedding_lookup(
-					self.output_embedding_table, 
+					self.embedding_table, 
 					go_input
 				) # [N, self.target_length, self.embedding_size]
+		if self.embedding_scale is True:
+			decoder_input /= self.embedding_size**0.5
+
 		decoder_input += self.PE[:self.target_length, :]
 		
+		#drop out 
+		decoder_input = tf.nn.dropout(decoder_input, keep_prob=self.keep_prob)
+
 		# decoding
 		decoder_output = self.decoder(
 					decoder_input,
@@ -291,20 +306,24 @@ class Transformer:
 		with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
 			# FFN
 			inner_layer = tf.layers.dense(
-						embedding, 
-						units=2048, 
-						activation=activation # relu
-					) # [N, self.target_length, units]
+					embedding, 
+					units=2048, 
+					activation=activation # relu
+				) # [N, self.target_length, units]
 			dense = tf.layers.dense(
-						inner_layer, 
-						units=units, 
-						activation=None
-					) # [N, self.target_length, self.embedding_size]
-			# Add
-			dense += embedding
+					inner_layer, 
+					units=units, 
+					activation=None
+				) # [N, self.target_length, self.embedding_size]
 			
+			#drop out 
+			dense = tf.nn.dropout(dense, keep_prob=self.keep_prob)
+
+			# Add
+			dense += embedding			
 			# Layer Norm
 			dense = tf.contrib.layers.layer_norm(dense,	begin_norm_axis=2)
+	
 		return dense 
 
 
@@ -314,38 +333,38 @@ class Transformer:
 	
 			# for문으로 8번 돌릴 필요 없이 embedding_size 만큼 만들고 8등분해서 연산하면 됨.	
 			V = tf.layers.dense( # layers dense는 배치(N)별로 동일하게 연산됨.	
-						key_value, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, key_value_sequence_length, self.embedding_size]
+					key_value, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, key_value_sequence_length, self.embedding_size]
 			K = tf.layers.dense(
-						key_value, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, key_value_sequence_length, self.embedding_size]
+					key_value, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, key_value_sequence_length, self.embedding_size]
 			Q = tf.layers.dense(
-						query, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, query_sequence_length, self.embedding_size]
+					query, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, query_sequence_length, self.embedding_size]
 
 			# linear 결과를 8등분하고 연산에 지장을 주지 않도록 batch화 시킴.
 			V = tf.concat(
-						#[N, key_value_sequence_length, self.embedding_size/8]이 8개 존재 
-						tf.split(value=V, num_or_size_splits=8, axis=-1), 
-						axis=0 
-					) # [8*N, key_value_sequence_length, self.embedding_size/8]
+					#[N, key_value_sequence_length, self.embedding_size/8]이 8개 존재 
+					tf.split(value=V, num_or_size_splits=8, axis=-1), 
+					axis=0 
+				) # [8*N, key_value_sequence_length, self.embedding_size/8]
 			K = tf.concat(
-						tf.split(value=K, num_or_size_splits=8, axis=-1), 
-						axis=0
-					) # [8*N, key_value_sequence_length, self.embedding_size/8]
+					tf.split(value=K, num_or_size_splits=8, axis=-1), 
+					axis=0
+				) # [8*N, key_value_sequence_length, self.embedding_size/8]
 			Q = tf.concat(
-						tf.split(value=Q, num_or_size_splits=8, axis=-1), 
-						axis=0
-					) # [8*N, query_sequence_length, self.embedding_size/8]
+					tf.split(value=Q, num_or_size_splits=8, axis=-1), 
+					axis=0
+				) # [8*N, query_sequence_length, self.embedding_size/8]
 			
 			# Q * (K.T) and scaling ,  [8*N, query_sequence_length, key_value_sequence_length]
 			score = tf.matmul(Q, tf.transpose(K, [0, 2, 1])) / tf.sqrt(self.embedding_size/8.0) 
@@ -358,17 +377,21 @@ class Transformer:
 			softmax = tf.nn.softmax(score, dim=2) # [8*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [8*N, query_sequence_length, self.embedding_size/8]			
 			concat = tf.concat(
-				 		# [N, query_sequence_length, self.embedding_size/8]이 8개 존재
-						tf.split(value=attention, num_or_size_splits=8, axis=0),
-						axis=-1
-					) # [N, query_sequence_length, self.embedding_size]
+			 		# [N, query_sequence_length, self.embedding_size/8]이 8개 존재
+					tf.split(value=attention, num_or_size_splits=8, axis=0),
+					axis=-1
+				) # [N, query_sequence_length, self.embedding_size]
 
 			# Linear
 			Multihead = tf.layers.dense(
-						concat, 
-						units=self.embedding_size, 
-						activation=activation
-					) # [N, query_sequence_length, self.embedding_size]
+					concat, 
+					units=self.embedding_size, 
+					activation=activation
+				) # [N, query_sequence_length, self.embedding_size]
+
+			#drop out 
+			Multihead = tf.nn.dropout(Multihead, keep_prob=self.keep_prob)
+
 			# Add
 			Multihead += query
 			# Layer Norm			

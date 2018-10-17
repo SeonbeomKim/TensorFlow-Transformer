@@ -4,25 +4,29 @@
 import tensorflow as tf
 import numpy as np
 
-
-
-
 class greedy_decoder:		
-	def decode(self, decoder_fn, encoder_embedding, target_length, output_embedding_table, PE, go_idx):
+	def decode(self, decoder_fn, encoder_embedding, target_length, PE, go_idx, embedding_table, embedding_scale=True):
 		# encoder_embedding: [N, self.sentence_length, self.embedding_size]
 		
-		# decoder input preprocessing
 		N = tf.shape(encoder_embedding)[0] # batchsize
+		embedding_size = tf.cast(tf.shape(embedding_table)[1], tf.float32)
+
+		# decoder input preprocessing
 		go_input = tf.one_hot(
 					tf.zeros([N], tf.int32), 
 					target_length, 
 					on_value=go_idx, 
 					off_value=-1
 				) # [N, self.target_length]
+	
+		# embedding lookup and scale
 		decoder_input = tf.nn.embedding_lookup(
-					output_embedding_table, 
+					embedding_table, 
 					go_input
 				) # [N, self.target_length, self.embedding_size]
+		if embedding_scale is True:
+			decoder_input /= tf.sqrt(embedding_size)
+
 		decoder_input += PE[:target_length, :] 
 		
 
@@ -53,11 +57,14 @@ class greedy_decoder:
 							constant_values=-1
 						) # [N, target_length]
 				
+				# embedding lookup and scale
 				embedding_pad_argmax_current_output = tf.nn.embedding_lookup(
-							output_embedding_table, 
+							embedding_table, 
 							pad_argmax_current_output
 						) # [N, target_length, self.embedding_size]
-				
+				if embedding_scale is True:
+					embedding_pad_argmax_current_output /= tf.sqrt(embedding_size)
+
 				decoder_input += embedding_pad_argmax_current_output # [N, target_length, self.embedding_size]
 
 		# concat all position of decoder_output
@@ -109,21 +116,28 @@ class beam_decoder:
 	def __init__(self, beam_size):
 		self.beam_size = beam_size
 		
-	def decode(self, decoder_fn, encoder_embedding, target_length, output_embedding_table, PE, go_idx):
+	def decode(self, decoder_fn, encoder_embedding, target_length, PE, go_idx, embedding_table, embedding_scale=True):
 		# encoder_embedding: [N, self.sentence_length, self.embedding_size]
 	
-		# decoder input preprocessing
 		N = tf.shape(encoder_embedding)[0] # batchsize
+		embedding_size = tf.cast(tf.shape(embedding_table)[1], tf.float32)
+
+		# decoder input preprocessing
 		go_input = tf.one_hot(
 					tf.zeros([N], tf.int32), 
 					target_length, 
 					on_value=go_idx, 
 					off_value=-1
 				) # [N, target_length]
+	
+		# embedding lookup and scale
 		decoder_input = tf.nn.embedding_lookup(
-					output_embedding_table, 
+					embedding_table, 
 					go_input
 				) # [N, target_length, self.embedding_size]
+		if embedding_scale is True:
+			decoder_input /= tf.sqrt(embedding_size)
+
 		decoder_input += PE[:target_length, :] 
 
 		# tile decoder_input  
@@ -247,10 +261,13 @@ class beam_decoder:
 							constant_values=-1
 						) # [N*beam_size, target_length]
 				
+				# embedding lookup and scale
 				embedding_pad_top_k_indices = tf.nn.embedding_lookup(
-							output_embedding_table, 
+							embedding_table, 
 							pad_top_k_indices
 						) # [N*beam_size, target_length, self.embedding_size]		
+				if embedding_scale is True:
+					embedding_pad_top_k_indices /= tf.sqrt(embedding_size)
 			
 				decoder_input += embedding_pad_top_k_indices
 
