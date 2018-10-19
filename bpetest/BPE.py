@@ -113,6 +113,8 @@ def make_bpe2idx(word_frequency_dict):
 				'</p>':3
 			}
 	idx = 4
+	print(word_frequency_dict)
+
 	for word in word_frequency_dict:
 		for bpe in word.split():
 			# bpe가 bpe2idx에 없는 경우만 idx 부여.
@@ -137,9 +139,15 @@ def get_bpe_information(word_frequency_dict, num_merges=10):
 		word_frequency_dict = merge_word2idx(best, word_frequency_dict) # 가장 높은 빈도의 2gram을 합침.
 		
 		# 문서 전처리용 정보 추출. merge_info에 저장된 순으로 합치면 됨.
+		# i == num_merges 인 경우는 마지막으로 if에 걸리는 시점임. 
+		# 이 때 합쳐져 있는 단어들을 기준으로 bpe2idx를 만들어야 함(merge_info가 적용된 만큼의 정보이므로). 그러므로 freeze 시켜둠.
 		if i < num_merges:
 			merge_info[best] = i #merge 하는데 사용된 정보 저장.
 			i += 1
+			if i == num_merges:
+				freeze_word_frequency_dict = word_frequency_dict.copy()
+
+
 
 		# 추 후 딥러닝에서 번역한 후에 subword들을 합칠 때 사용되는 정보.
 		# len(pairs)가 1일 때 까지 수행. 그 다음 iter에서는 0이 되어서 오류나므로 break.
@@ -147,8 +155,8 @@ def get_bpe_information(word_frequency_dict, num_merges=10):
 			recover_info[best] = i
 			if len(pairs) == 1:
 				break
-	
-	bpe2idx = make_bpe2idx(word_frequency_dict)
+
+	bpe2idx = make_bpe2idx(freeze_word_frequency_dict)
 	return bpe2idx, merge_info, recover_info
 
 
@@ -185,18 +193,22 @@ def make_bpe_format_testcode():
 def testcode_2():
 	path = "./testdata.en"
 	
-	# 일단 다른 문서들로부터 bpe2idx, merge_info, recover_info를 구했다고 치자.
+	# 일단 학습 문서만으로부터 bpe2idx, merge_info, recover_info를 구했다고 치자.
 	word2idx = get_word_frequency_dict_for_bpe_from_document(path)	
-	bpe2idx, merge_info, recover_info = get_bpe_information(word2idx, num_merges=30)#100
+	bpe2idx, merge_info, recover_info = get_bpe_information(word2idx, num_merges=10)#100
 
-	#여기서부터 시작한다.
+
+
+	#여기서부터 시작한다. 이건 학습 따로, 테스트 따로 돌리면 됨. 
 	bpe = document_preprocess_for_bpe(path, merge_info=merge_info) # 2d list not numpy
 	# 쉽게 패딩하기. (pandas로 변환 => fillna 함수로 패딩처리 => numpy로 변환)
 	bpe = pd.DataFrame(bpe)
 	bpe.fillna('</p>', inplace=True) # NaN => pad_symbol	
 	bpe = np.array(bpe)
-	print(bpe)
-
+	
+	# bpe 데이터의 idx화. 이것을 csv에 저장해두고 학습때 불러오면 됨.
+	idxdata = np.vectorize(bpe2idx.get)(bpe)
+	print(idxdata)
 
 	
 	'''
