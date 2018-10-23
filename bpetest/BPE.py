@@ -1,3 +1,5 @@
+#-*-coding:utf-8
+
 # https://arxiv.org/abs/1508.07909 Byte-Pair Encoding (BPE)
 # https://lovit.github.io/nlp/2018/04/02/wpm/ 참고
 
@@ -5,34 +7,87 @@ import re, collections
 import numpy as np # 1.15
 import pandas as pd # 0.23
 
-# 눈으로 쉽게 확인하기위해 짠 테스트코드import pandas as pd # 0.23
-#data = read_pd_format(data)
-def read_pd_format(np_format):
-	df = pd.DataFrame(np_format, index=np.arange(len(np_format))),
-	return df
-
 
 # word:"abc" => "a b c space_symbol"
 def word_split_for_bpe(word, space_symbol='</w>'):
 	return ' '.join(list(word)) + ' ' + space_symbol
 
 
-# document read and padding.
-def read_document_and_pad(path, pad_symbol='</p>'):
-	data = pd.read_csv(path, sep=" ", header=None) # pad value is NaN
-	data.fillna(pad_symbol, inplace=True) # NaN => pad_symbol	
-	return np.array(data)
+# chunksize씩 처리하도록 구현하자.
+def read_document(path):
+	document = []
+
+	with open(path, 'r', encoding='utf-8') as f:
+		for i, sentence in enumerate(f):
+			if sentence == '\n' or sentence == ' ' or sentence == '':
+				break
+			document.append(sentence.split())
+	return document
 
 
-# 문서를 읽고, bpe 적용.
-def document_preprocess_for_bpe(path, space_symbol='</w>', pad_symbol='</p>', eos_symbol='</e>', merge_info=None):
-	data = read_document_and_pad(path, pad_symbol) #numpy type
+# word frequency 추출.
+def get_word_frequency_dict_for_bpe_from_document(path_list, space_symbol='</w>', except_symbol={}, top_k=None):
+	word_frequency_dict = {}
+
+	for path in path_list:
+		with open(path, 'r', encoding='utf-8') as f:
+			for i, sentence in enumerate(f):
+				if sentence == '\n' or sentence == ' ' or sentence == '':
+					break
+				
+				for word in sentence.split():
+					# &apos; 같은 단어를 '로 바꾸는 등의 치환.
+					if word in except_symbol:
+						word = except_symbol[word]
+					
+					split_word = word_split_for_bpe(word, space_symbol)
+					
+					# word frequency
+					if split_word in word_frequency_dict:
+						word_frequency_dict[split_word] += 1
+					else:
+						word_frequency_dict[split_word] = 1
+
+	if top_k is None:
+		return word_frequency_dict
 	
+	else:
+		# top_k frequency word
+		sorted_word_frequency_list = sorted(
+					word_frequency_dict.items(), # ('key', value) pair
+					key=lambda x:x[1], # x: ('key', value), and x[1]: value
+					reverse=True
+				) # [('a', 3), ('b', 2), ... ] 
+		top_k_word_frequency_dict = dict(sorted_word_frequency_list[:top_k])
+	
+		return top_k_word_frequency_dict
+
+
+def merge_dictionary(dic_a, dic_b):
+	for i in dic_b:
+		if i in dic_a:
+			dic_a[i] += dic_b[i]
+		else:
+			dic_a[i] = dic_b[i]
+	return dic_a
+
+
+# 문서를 읽고, bpe 적용. cache 사용할것.
+def document_preprocess_for_bpe(path, space_symbol='</w>', pad_symbol='</p>', eos_symbol='</e>', except_symbol={}, merge_info=None):
+		
 	bpe = []
-	for i, row in enumerate(data):
-		sentence = []
-		for j, word in enumerate(row):
-			if word != pad_symbol: # pad는 처리 안함.
+	with open(path, 'r', encoding='utf-8') as f:
+		for i, sentence in enumerate(f):
+			print(i)
+			row = []
+			if sentence == '\n' or sentence == ' ' or sentence == '':
+				break
+
+			for word in sentence.split():
+				# &apos; 같은 단어를 '로 바꾸는 등의 치환.
+				if word in except_symbol:
+					word = except_symbol[word]
+
 				# "abc" => "a b c space_symbol"
 				split_word = word_split_for_bpe(word, space_symbol)
 				
@@ -40,34 +95,14 @@ def document_preprocess_for_bpe(path, space_symbol='</w>', pad_symbol='</p>', eo
 				merge = merge_a_word(merge_info, split_word)
 
 				# 안합쳐진 부분은 다른 단어로 인식해서 공백기준 split 처리해서 sentence에 extend
-				sentence.extend(merge.split())
-
-		# eos 추가.
-		sentence.append(eos_symbol)
-		bpe.append(sentence)
+				row.extend(merge.split())
 		
+			# eos 추가.
+			row.append(eos_symbol)
+			bpe.append(row)
+			
 	return bpe
 
-
-
-# 문서 읽어서 bpe를 적용할 수 있는 format으로 변환. 
-def get_word_frequency_dict_for_bpe_from_document(path, space_symbol='</w>', pad_symbol='</p>'):
-	data = read_document_and_pad(path, pad_symbol) #numpy type
-	word_frequency_dict = {}
-
-	for i, row in enumerate(data):
-		for j, word in enumerate(row):
-			if word != pad_symbol: # pad는 처리 안함.
-				# "abc" => "a b c space_symbol"
-				data[i][j] = word_split_for_bpe(word, space_symbol)
-				
-				# word frequency
-				if data[i][j] in word_frequency_dict:
-					word_frequency_dict[data[i][j]] += 1
-				else:
-					word_frequency_dict[data[i][j]] = 1
-
-	return word_frequency_dict
 
 
 # 2-gram frequency table 추출.
@@ -82,13 +117,18 @@ def get_stats(word_frequency_dict):
 	# tuple을 담고 있는 dictionary 리턴.
 	return pairs 
 
+# pairs 중에서 가장 높은 frequency를 갖는 key 리턴.
+def check_merge_info(pairs):
+	best = max(pairs, key=pairs.get)
+	return best
 
 # frequency가 가장 높은 best_pair 정보를 이용해서 단어를 merge.
 def merge_word2idx(best_pair, word_frequency_dict):
 	# best_pair: tuple ('r','</w>')
 	# word_frequency_dict: dictionary
+	
+	v_out = collections.OrderedDict() # 입력 순서 유지
 
-	v_out = {}
 	bigram = re.escape(' '.join(best_pair))
 	p = re.compile(r'(?<!\S)' + bigram + r'(?!\S)')
 	for word in word_frequency_dict:
@@ -96,12 +136,6 @@ def merge_word2idx(best_pair, word_frequency_dict):
 		w_out = p.sub(''.join(best_pair), word)
 		v_out[w_out] = word_frequency_dict[word]
 	return v_out
-
-
-# pairs 중에서 가장 높은 frequency를 갖는 key 리턴.
-def check_merge_info(pairs):
-	best = max(pairs, key=pairs.get)
-	return best
 
 
 # from bpe to idx
@@ -113,15 +147,22 @@ def make_bpe2idx(word_frequency_dict):
 				'</p>':3
 			}
 	idx = 4
-	print(word_frequency_dict)
-
+	
+	idx2bpe = {
+				0:'UNK',
+				1:'</g>', #go
+				2:'</e>', #eos
+				3:'</p>'
+			}
+	
 	for word in word_frequency_dict:
 		for bpe in word.split():
 			# bpe가 bpe2idx에 없는 경우만 idx 부여.
 			if bpe not in bpe2idx:
 				bpe2idx[bpe] = idx
+				idx2bpe[idx] = bpe
 				idx += 1
-	return bpe2idx
+	return bpe2idx, idx2bpe
 
 
 
@@ -130,34 +171,37 @@ def get_bpe_information(word_frequency_dict, num_merges=10):
 	
 	#merge_info: 합친 정보를 기억하고있다가. 나중에 데이터를 같은 순서로만 합치면 똑같이 됨.
 	merge_info = collections.OrderedDict() # 입력 순서 유지
-	recover_info = collections.OrderedDict()
+	
+	word_frequency_dict = collections.OrderedDict(word_frequency_dict) # 입력 순서 유지(cache 구할 때 순서 맞추려고)
+	cache = word_frequency_dict.copy() # 나중에 word -> bpe 처리 할 때, 빠르게 하기 위함.
 
-	i = 0 #iter
-	while True:
+	import time
+	start = time.time()
+
+	log = 1 # 1000등분마다 찍을것.
+	for i in range(num_merges):
+		#1000등분마다 로그
+		if i % (num_merges / 1000) == 0:
+			print( log,'/',1000 , 'time:', time.time()-start )
+			log += 1 # 1000등분마다 찍을것.
+
 		pairs = get_stats(word_frequency_dict) # 2gram별 빈도수 추출.
 		best = check_merge_info(pairs) # 가장 높은 빈도의 2gram 선정
 		word_frequency_dict = merge_word2idx(best, word_frequency_dict) # 가장 높은 빈도의 2gram을 합침.
-		
-		# 문서 전처리용 정보 추출. merge_info에 저장된 순으로 합치면 됨.
-		# i == num_merges 인 경우는 마지막으로 if에 걸리는 시점임. 
-		# 이 때 합쳐져 있는 단어들을 기준으로 bpe2idx를 만들어야 함(merge_info가 적용된 만큼의 정보이므로). 그러므로 freeze 시켜둠.
-		if i < num_merges:
-			merge_info[best] = i #merge 하는데 사용된 정보 저장.
-			i += 1
-			if i == num_merges:
-				freeze_word_frequency_dict = word_frequency_dict.copy()
 
+		#merge 하는데 사용된 정보 저장.
+		merge_info[best] = i 
+	
 
+	# 빠른 변환을 위한 cache 저장. 기존 word를 key로, bpe 결과를 value로.
+	merged_keys = list(word_frequency_dict.keys())
+	for i, key in enumerate(cache):
+		cache[key] = merged_keys[i]
 
-		# 추 후 딥러닝에서 번역한 후에 subword들을 합칠 때 사용되는 정보.
-		# len(pairs)가 1일 때 까지 수행. 그 다음 iter에서는 0이 되어서 오류나므로 break.
-		if len(pairs) >= 1: 
-			recover_info[best] = i
-			if len(pairs) == 1:
-				break
+	# voca 추출.
+	bpe2idx, idx2bpe = make_bpe2idx(word_frequency_dict)
+	return bpe2idx, idx2bpe, merge_info, cache
 
-	bpe2idx = make_bpe2idx(freeze_word_frequency_dict)
-	return bpe2idx, merge_info, recover_info
 
 
 def merge_a_word(merge_info, word):
@@ -174,52 +218,77 @@ def merge_a_word(merge_info, word):
 
 
 
-def make_bpe_format_testcode():
-	path = "./testdata.en"
+def save_dictionary(path, dictionary):
+	np.save(path, dictionary)
 
-	word2idx = get_word_frequency_dict_for_bpe_from_document(path)	
-	bpe2idx, merge_info, recover_info = get_bpe_information(word2idx)
-
-	print('word2idx', len(word2idx))
-	print('bpe2idx', len(bpe2idx))
-	print('merge_info', len(merge_info))
-	print('recover_info', len(recover_info), '\n\n')
-		
-	merge_a_word(recover_info, "c e m e n t </w>")
-	for i in recover_info:
-		print(i)	
+def load_dictionary(path, encoding='utf-8'):
+	data = np.load(path, encoding='bytes').item()
+	return data
 
 
-def testcode_2():
-	path = "./testdata.en"
-	
-	# 일단 학습 문서만으로부터 bpe2idx, merge_info, recover_info를 구했다고 치자.
-	word2idx = get_word_frequency_dict_for_bpe_from_document(path)	
-	bpe2idx, merge_info, recover_info = get_bpe_information(word2idx, num_merges=10)#100
+def testcode_3():
+	except_symbol = {'&apos;':"""'""", '@-@': '-', '&quot;':'''"''', '&amp;':'&'}
 
-
-
-	#여기서부터 시작한다. 이건 학습 따로, 테스트 따로 돌리면 됨. 
-	bpe = document_preprocess_for_bpe(path, merge_info=merge_info) # 2d list not numpy
-	# 쉽게 패딩하기. (pandas로 변환 => fillna 함수로 패딩처리 => numpy로 변환)
-	bpe = pd.DataFrame(bpe)
-	bpe.fillna('</p>', inplace=True) # NaN => pad_symbol	
-	bpe = np.array(bpe)
-	
-	# bpe 데이터의 idx화. 이것을 csv에 저장해두고 학습때 불러오면 됨.
-	idxdata = np.vectorize(bpe2idx.get)(bpe)
-	print(idxdata)
-
-	
 	'''
-	print(word2idx[0])	
-	merge = merge_a_word(merge_info, word2idx[0][0])
-	#merge = merge_a_word(recover_info, word2idx[0][0])
-	print(merge)
+	path_en = "../dataset/corpus.tc.de/corpus.tc.de"
+	path_de = "../dataset/corpus.tc.en/corpus.tc.en"
+	
+	en_word_frequency_dict = get_word_frequency_dict_for_bpe_from_document(
+				path_list=[path_en], 
+				space_symbol='</w>', 
+				except_symbol=except_symbol,
+				top_k=100000#None
+			) #ok
+	de_word_frequency_dict = get_word_frequency_dict_for_bpe_from_document(
+				path_list=[path_de], 
+				space_symbol='</w>', 
+				except_symbol=except_symbol,
+				top_k=100000#None
+			)
+	
+	merge_dict = merge_dictionary(en_word_frequency_dict, de_word_frequency_dict)
+	np.save('./new_merge_dictionary.npy', merge_dict)
+	'''
+	word_frequency_dict = load_dictionary('./new_merge_dictionary.npy')
+	print(len(word_frequency_dict))
+	
+	#import time
+	#start = time.time()
+	
+	# 1번에 1.09초 
+	bpe2idx, idx2bpe, merge_info, cache = get_bpe_information(word_frequency_dict, num_merges=37000)#100
+	#print(time.time()-start)
+	
+	print(len(bpe2idx))
+	for i, key in enumerate(cache):
+		print(key, cache[key])
+		if i == 5:
+			break
+	
+	save_dictionary('./new_bpe2idx.npy', bpe2idx)
+	save_dictionary('./new_idx2bpe.npy', idx2bpe)
+	save_dictionary('./new_merge_info.npy', merge_info)
+	save_dictionary('./new_cache.npy', cache)
+
+	#bpe2idx = load_dictionary('./bpe2idx.npy')
+	#merge_info = load_dictionary('./merge_info.npy', encoding='utf-8')
+	#start = time.time()
+	#test = merge_a_word(merge_info, "t e s t </w>")
+	#print(time.time()-start)
+	#print(test)
+
 	'''
 
+	path_en = "./testdata.en"
+	en_word_frequency_dict = get_word_frequency_dict_for_bpe_from_document(
+				path_list=[path_en], 
+				space_symbol='</w>', 
+				except_symbol=except_symbol,
+				top_k=50000#None
+			) #ok
+	bpe2idx, idx2bpe, merge_info, cache = get_bpe_information(en_word_frequency_dict, num_merges=100)#100
+	for i in merge_info:
+		print(i, merge_info[i])
+	'''
 
-#bpe_testcode()
-#make_bpe_format_testcode()
-
-testcode_2()
+testcode_3()
