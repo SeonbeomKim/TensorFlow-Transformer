@@ -7,6 +7,9 @@ Attention Is All You Need
     * Label Smoothing: https://arxiv.org/abs/1512.00567 
     * Byte-Pair Encoding (BPE): https://arxiv.org/abs/1508.07909  
 
+## Dataset
+    * preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/  
+    
 ## Reference
     * https://jalammar.github.io/illustrated-transformer/
-#https://arxiv.org/abs/1706.03762 Attention Is All You Need(Transformer)
+    
