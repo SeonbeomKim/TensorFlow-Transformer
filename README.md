@@ -9,6 +9,8 @@ Attention Is All You Need
 
 ## Dataset
     * preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/  
+        * Sentences were encoded using byte-pair encoding 
+          (https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
     
 ## Reference
     * https://jalammar.github.io/illustrated-transformer/
