@@ -14,7 +14,15 @@ Attention Is All You Need
       * train_set: corpus.tc (I used only 500,000 line)
       * test_set: dev/newstest
    * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
-
+      * MakeFile: 
+         * bpe_applied_data
+         * bpe2idx.npy 
+         * idx2bpe.npy 
+         * cache.npy
+         * merge_info.npy
+         * word_frequency_dictionary.npy 
+      
+      
 ## Reference
    * https://jalammar.github.io/illustrated-transformer/
    * https://github.com/Kyubyong/transformer
