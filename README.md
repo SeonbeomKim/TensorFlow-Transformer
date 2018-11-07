@@ -21,7 +21,17 @@ Attention Is All You Need
          * cache.npy
          * merge_info.npy
          * word_frequency_dictionary.npy 
-      
+
+## Code
+   * make_train_valid_set.py
+      * generate concatenated(source||target) and bucketed data (train, valid dataset)
+      * need MakeFile of [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) 
+      * MakeFile: 
+         * train_bucket_concat_dataset.npy: training data
+         * valid_bucket_concat_dataset.npy: validation data 
+         * bucket_concat_dataset.npy: train_bucket_concat_dataset.npy + valid_bucket_concat_dataset.npy
+         * bpe2idx_(en,de).csv: bpe_applied_data to idx
+         
       
 ## Reference
    * https://jalammar.github.io/illustrated-transformer/
