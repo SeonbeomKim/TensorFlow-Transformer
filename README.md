@@ -28,12 +28,14 @@ Attention Is All You Need
       * greedy decoder
       * beam-search decoder
   
-   * Inference_metric.py
-      * cost, accuracy, bleu check
-   
-    
+   * Inference_utils.py
+      * inference, cost, accuracy, bleu(추가 예정)
+         
    * Transformer.py
       * Transformer implement
+     
+   * bucket_data_helper.py
+      * bucket으로 구성된 데이터를 쉽게 가져오도록 하는 class
       
    * make_train_valid_set.py
       * generate concatenated(source||target) and bucketed data (train, valid dataset)
@@ -44,6 +46,8 @@ Attention Is All You Need
          * bucket_concat_dataset.npy: train_bucket_concat_dataset.npy + valid_bucket_concat_dataset.npy
          * bpe2idx_(en,de).csv: bpe_applied_data to idx
          
+   * translation_train.py (구현중)
+     * WMT17 en-de train, validation
       
 ## Reference
    * https://jalammar.github.io/illustrated-transformer/
