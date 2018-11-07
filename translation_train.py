@@ -9,6 +9,7 @@ import Inference_utils # metric, inference
 import bucket_data_helper
 import datetime
 import os
+import collections
 
 
 
@@ -57,7 +58,7 @@ def train(model, data, lr):
 	return loss/total_data_len
 
 
-def validation(model, data, decode_helper, infer_utils):
+def validation(model, data, infer_utils_dict):
 	loss = 0
 	total_data_len = 0
 	
@@ -72,15 +73,7 @@ def validation(model, data, decode_helper, infer_utils):
 		sentence = batch_data[:, :bucket[0]]
 		target = batch_data[:, bucket[0]:]
 		
-		infer_pred_except_eos, infer_embedding = infer_utils.inference(
-					decode_helper=decode_helper, 
-					is_embedding_scale=True, 
-					target_length=bucket[1]
-				)
-		infer_cost = infer_utils.cost(infer_embedding)
-		infer_accuracy = infer_utils.accuracy(target, infer_pred_except_eos, target_length=bucket[1])
-		
-		vali_loss = sess.run(infer_cost, 
+		vali_loss = sess.run(infer_utils_dict[bucket]['cost'], 
 					{
 						model.sentence:sentence, 
 						model.target:target, 
@@ -95,7 +88,7 @@ def validation(model, data, decode_helper, infer_utils):
 
 
 
-def run(model, sess, train_batch, valid_batch, decode_helper, infer_utils,  restore=0):
+def run(model, sess, train_batch, valid_batch, infer_utils_dict,  restore=0):
 	with tf.name_scope("tensorboard"):
 		train_loss_tensorboard = tf.placeholder(tf.float32, name='train_loss')
 		vali_loss_tensorboard = tf.placeholder(tf.float32, name='vali_loss')
@@ -117,7 +110,7 @@ def run(model, sess, train_batch, valid_batch, decode_helper, infer_utils,  rest
 		print("restore", restore)
 		model.saver.restore(sess, saver_path+str(restore)+".ckpt")
 		
-		vali_loss = validation(model, valid_batch, decode_helper, infer_utils)
+		vali_loss = validation(model, valid_batch, infer_utils_dict)
 		print("epoch:", restore, "\tvali_loss:", vali_loss, '\ttime:', datetime.datetime.now())
 
 
@@ -133,7 +126,7 @@ def run(model, sess, train_batch, valid_batch, decode_helper, infer_utils,  rest
 
 
 		if epoch % test_epoch == 0:
-			vali_loss = validation(model, valid_batch, decode_helper, infer_utils)
+			vali_loss = validation(model, valid_batch, infer_utils_dict)
 			print("epoch:", epoch, "train_loss:", train_loss, "\tvali_loss:", vali_loss, '\tlr:', lr, '\ttime:', datetime.datetime.now())
 		
 			#accuracy = test(model, testset)
@@ -157,6 +150,7 @@ def run(model, sess, train_batch, valid_batch, decode_helper, infer_utils,  rest
 print('Data read')
 train_set = load_dictionary(train_set_path)
 train_batch = bucket_data_helper.bucket_data(train_set, iter=True, batch_token = 16000)
+all_bucket = train_batch.get_all_bucket()
 
 valid_set = load_dictionary(valid_set_path)
 valid_batch = bucket_data_helper.bucket_data(valid_set, iter=True, batch_token = 16000)
@@ -165,7 +159,7 @@ bpe2idx = load_dictionary(bpe2idx_path)
 
 
 
-
+embedding_size = 256
 warmup_steps = 1000
 test_epoch = 50
 
@@ -174,7 +168,7 @@ sess = tf.Session()
 model = Transformer.Transformer(
 			sess = sess,
 			voca_size = len(bpe2idx), 
-			embedding_size = 256, 
+			embedding_size = embedding_size, 
 			is_embedding_scale = True, 
 			PE_sequence_length = 200,
 			encoder_decoder_stack = 1,
@@ -185,9 +179,27 @@ model = Transformer.Transformer(
 		)
 
 decode_helper = Decode_helper.greedy_decoder()
-infer_utils = Inference_utils.utils(model=model, go_idx=bpe2idx['</g>'], eos_idx=bpe2idx['</e>'], pad_idx=-1)
 print(decode_helper)
 
 
+# target_length별로 infer utils 선언.
+infer_utils = Inference_utils.utils(model=model, go_idx=bpe2idx['</g>'], eos_idx=bpe2idx['</e>'], pad_idx=-1)
+infer_utils_dict = collections.defaultdict(int) # tuple form으로 key 사용 가능함.
+for bucket in all_bucket:
+	infer_pred_except_eos, infer_embedding = infer_utils.inference(
+				decode_helper=decode_helper, 
+				is_embedding_scale=True, 
+				target_length=bucket[1]
+			)
+	infer_cost = infer_utils.cost(infer_embedding)
+	infer_accuracy = infer_utils.accuracy(infer_pred_except_eos, target_length=bucket[1])
+	infer_dict = {
+				'inference':infer_pred_except_eos, 
+				'cost':infer_cost, 
+				'accuracy':infer_accuracy
+			}
+	infer_utils_dict[bucket] = infer_dict
+	
+
 print('run')
-run(model, sess, train_batch, valid_batch, decode_helper, infer_utils, 90)
+run(model, sess, train_batch, valid_batch, infer_utils_dict, 90)

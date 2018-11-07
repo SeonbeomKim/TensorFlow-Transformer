@@ -1,6 +1,6 @@
 import numpy as np
 
-# get_batch 함수로 데이터 긁어옴. return이 0이면 epoch 끝. 
+# get_batch 함수로 데이터 긁어옴. return이 0 이면 epoch 끝. 
 class bucket_data:  
 	def __init__(self, data, iter=True, batch_token = 16000):
 		self.data = data

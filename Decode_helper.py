@@ -1,6 +1,6 @@
 #https://arxiv.org/abs/1706.03762 Attention Is All You Need(Transformer)
 #https://arxiv.org/abs/1607.06450 Layer Normalization
-
+ 
 import tensorflow as tf
 import numpy as np
 

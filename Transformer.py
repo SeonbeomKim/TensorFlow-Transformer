@@ -6,7 +6,7 @@ import tensorflow as tf #version 1.4
 import numpy as np
 import os
 
-#tf.set_random_seed(777)
+# tf.set_random_seed(777)
 
 class Transformer:
 	def __init__(self, sess, voca_size, embedding_size, is_embedding_scale, PE_sequence_length,

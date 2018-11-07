@@ -54,15 +54,16 @@ class utils:
 
 
 	#inference accuracy
-	def accuracy(self, target, infer_pred_except_eos, target_length):
-		target = tf.convert_to_tensor(target, dtype=tf.int32)
-		
+	def accuracy(self, infer_pred_except_eos, target_length):
+		#target = tf.convert_to_tensor(target, dtype=tf.int32)
+		model = self.model
+
 		target_eos_mask = tf.cast( #sequence_mask처럼 생성됨.
-				tf.not_equal(target, self.pad_idx) & tf.not_equal(target, self.eos_idx),
+				tf.not_equal(model.target, self.pad_idx) & tf.not_equal(model.target, self.eos_idx),
 				dtype=tf.int32
 			) # [N, target_length] (include eos)
 
-		target_except_eos = target * target_eos_mask # masking pad
+		target_except_eos = model.target * target_eos_mask # masking pad
 		target_except_eos += (target_eos_mask - 1) # the value of the masked position is -1
 		
 		# correct check
