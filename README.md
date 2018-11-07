@@ -8,7 +8,9 @@ Attention Is All You Need
    * Byte-Pair Encoding (BPE): https://arxiv.org/abs/1508.07909  
 
 ## Dataset
-   * preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/  
+   * Preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/  
+      * Source: en (train: corpus.tc.en, test: dev/newstest.tc.en)
+      * Target: de (train: corpus.tc.de, test: dev/newstest.tc.de)
    * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
 
 ## Reference
