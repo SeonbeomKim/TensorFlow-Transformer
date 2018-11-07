@@ -23,6 +23,13 @@ Attention Is All You Need
          * word_frequency_dictionary.npy 
 
 ## Code
+   * Decode_helper.py
+      * greedy decoder
+      * beam-search decoder
+      
+   * Transformer.py
+      * Transformer implement
+      
    * make_train_valid_set.py
       * generate concatenated(source||target) and bucketed data (train, valid dataset)
       * need MakeFile of [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) 
