@@ -10,7 +10,7 @@ import os
 
 class Transformer:
 	def __init__(self, sess, voca_size, embedding_size, is_embedding_scale, PE_sequence_length,
-					encoder_decoder_stack, go_idx, eos_idx, pad_idx, label_smoothing, infer_helper):
+					encoder_decoder_stack, go_idx, eos_idx, pad_idx, label_smoothing):
 		
 		self.sess = sess
 		self.voca_size = voca_size
@@ -22,7 +22,6 @@ class Transformer:
 		self.eos_idx = eos_idx # <'eos'> symbol index
 		self.pad_idx = pad_idx # -1
 		self.label_smoothing = 0.1 # if 1.0, then one-hot encooding
-		self.infer_helper = infer_helper
 		self.PE = tf.convert_to_tensor(self.positional_encoding(), dtype=tf.float32) #[self.target_length + alpha, self.embedding_siz] #slice해서 쓰자.
 		#self.lr = 0.0001
 
