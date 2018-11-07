@@ -52,3 +52,7 @@ class metric:
 		correct_count = tf.reduce_sum(correct_check) # scalar
 		return correct_count
 	
+
+	#inference bleu
+	def bleu(self):
+		pass
