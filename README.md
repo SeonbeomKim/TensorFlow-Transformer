@@ -12,7 +12,8 @@ Attention Is All You Need
       * Source: en
       * Target: de
       * train_set: corpus.tc (I used only 500,000 line)
-      * test_set: dev/newstest
+      * test_set: dev/newstest 
+       
    * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
       * MakeFile: 
          * bpe_applied_data
