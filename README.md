@@ -27,7 +27,11 @@ Attention Is All You Need
    * Decode_helper.py
       * greedy decoder
       * beam-search decoder
-      
+  
+   * Inference_metric.py
+      * cost, accuracy, bleu check
+   
+    
    * Transformer.py
       * Transformer implement
       
