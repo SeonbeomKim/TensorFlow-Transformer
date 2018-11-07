@@ -18,14 +18,15 @@ class greedy_decoder:
 					on_value=go_idx, 
 					off_value=-1
 				) # [N, self.target_length]
-	
+
 		# embedding lookup and scale
 		decoder_input = tf.nn.embedding_lookup(
 					embedding_table, 
 					go_input
 				) # [N, self.target_length, self.embedding_size]
+
 		if is_embedding_scale is True:
-			decoder_input /= tf.sqrt(embedding_size)
+			decoder_input *= tf.sqrt(embedding_size)
 
 		decoder_input += PE[:target_length, :] 
 		
@@ -33,6 +34,7 @@ class greedy_decoder:
 		# greedy decoding
 		decoder_output = []
 		for index in range(target_length): 
+		#for index in tf.range(start=0, limit=self.target_length): 
 			
 			# get decoder_output of current postion
 			current_output = decoder_fn(
@@ -63,7 +65,7 @@ class greedy_decoder:
 							pad_argmax_current_output
 						) # [N, target_length, self.embedding_size]
 				if is_embedding_scale is True:
-					embedding_pad_argmax_current_output /= tf.sqrt(embedding_size)
+					embedding_pad_argmax_current_output *= tf.sqrt(embedding_size)
 
 				decoder_input += embedding_pad_argmax_current_output # [N, target_length, self.embedding_size]
 
@@ -136,7 +138,7 @@ class beam_decoder:
 					go_input
 				) # [N, target_length, self.embedding_size]
 		if is_embedding_scale is True:
-			decoder_input /= tf.sqrt(embedding_size)
+			decoder_input *= tf.sqrt(embedding_size)
 
 		decoder_input += PE[:target_length, :] 
 
@@ -267,7 +269,7 @@ class beam_decoder:
 							pad_top_k_indices
 						) # [N*beam_size, target_length, self.embedding_size]		
 				if is_embedding_scale is True:
-					embedding_pad_top_k_indices /= tf.sqrt(embedding_size)
+					embedding_pad_top_k_indices *= tf.sqrt(embedding_size)
 			
 				decoder_input += embedding_pad_top_k_indices
 
