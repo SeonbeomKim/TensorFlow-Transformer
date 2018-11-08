@@ -50,7 +50,7 @@ Attention Is All You Need
      * WMT17 en-de train, validation
 
 ## Training
-   1. Dataset Download
+   1. [WMT17 Dataset Download](http://data.statmt.org/wmt17/translation-task/preprocessed/)  
    2. [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) apply
    3. make_train_valid_set.py
    4. translation_train.py
