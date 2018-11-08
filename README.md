@@ -48,7 +48,10 @@ Attention Is All You Need
          
    * translation_train.py (구현중)
      * WMT17 en-de train, validation
-      
+
+## Training
+   * Dataset Download => [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) apply => make_train_valid_set.py => translation_train.py
+
 ## Reference
    * https://jalammar.github.io/illustrated-transformer/
    * https://github.com/Kyubyong/transformer
