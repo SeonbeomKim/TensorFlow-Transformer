@@ -50,7 +50,10 @@ Attention Is All You Need
      * WMT17 en-de train, validation
 
 ## Training
-   * Dataset Download => [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) apply => make_train_valid_set.py => translation_train.py
+   1. Dataset Download
+   2. [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) apply
+   3. make_train_valid_set.py
+   4. translation_train.py
 
 ## Reference
    * https://jalammar.github.io/illustrated-transformer/
