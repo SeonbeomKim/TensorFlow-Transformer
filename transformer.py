@@ -38,9 +38,10 @@ class Transformer:
 
 
 		with tf.name_scope("embedding_table"):
-			zero = tf.zeros([1, self.embedding_size], dtype=tf.float32) # for padding
+			zero = tf.zeros([1, self.embedding_size], dtype=tf.float32) # for padding 
 			embedding_table = tf.Variable(tf.random_normal([self.voca_size-1, self.embedding_size])) 
-			self.embedding_table = tf.concat((zero, embedding_table), axis=0)
+			front, end = tf.split(embedding_table, [self.pad_idx, self.voca_size-1-self.pad_idx])
+			self.embedding_table = tf.concat((front, zero, end), axis=0)
 
 
 		with tf.name_scope("masks"):
@@ -117,6 +118,14 @@ class Transformer:
 		
 
 		sess.run(tf.global_variables_initializer())
+
+
+	def make_embedding_table(self):
+		zero = tf.zeros([1, self.embedding_size], dtype=tf.float32) # for padding
+		embedding_table = tf.Variable(tf.random_normal([self.voca_size-1, self.embedding_size])) 
+		front, end = tf.split(embedding_table, [self.pad_idx, -1])
+		self.embedding_table = tf.concat((front, zero, end), axis=0)
+
 
 
 	def beam_search_graph(self, infer_embedding, time_step, beam_width):
