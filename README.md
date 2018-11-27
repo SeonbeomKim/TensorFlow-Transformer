@@ -1,6 +1,8 @@
 # TensorFlow-Transformer
 Attention Is All You Need
 
+구현중
+
 ## Paper
    * Attention Is All You Need: https://arxiv.org/abs/1706.03762
    * Layer Normalization: https://arxiv.org/abs/1607.06450
