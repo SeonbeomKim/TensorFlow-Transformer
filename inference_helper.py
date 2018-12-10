@@ -7,28 +7,29 @@ class greedy:
 		self.model = model
 		self.go_idx = go_idx
 
-	def decode(self, sentence, target_length):
+	def decode(self, encoder_input, target_length):
 		sess = self.sess
 		model = self.model
 		go_idx = self.go_idx
+		encoder_input = np.array(encoder_input, dtype=np.int32)
 		
-		input_token = np.zeros([sentence.shape[0], target_length+1], np.int32) # go || target_length
+		input_token = np.zeros([encoder_input.shape[0], target_length+1], np.int32) # go || target_length
 		input_token[:, 0] = go_idx
 		#decoder_embedding = []
 
 		# 이렇게 안하면 decoder time step 계산할 때마다 encoder embedding 재계산해야해서 느림.
 		encoder_embedding = sess.run(model.encoder_embedding,  
 					{
-						model.sentence:sentence, 
+						model.encoder_input:encoder_input, 
 						model.keep_prob:1
 					}
-				) # [N, self.sentence_length, self.embedding_size]
+				) # [N, self.encoder_input_length, self.embedding_size]
 		
 		for index in range(target_length):
 			current_pred, current_embedding = sess.run([model.infer_pred, model.infer_embedding],
 						{
 							model.feed_encoder_embedding:encoder_embedding,
-							model.target:input_token,
+							model.decoder_input:input_token[:, :-1],
 							model.keep_prob:1
 						}
 					) # [N, target_length+1]
@@ -40,17 +41,20 @@ class greedy:
 
 
 class beam:
-	def __init__(self, sess, model, go_idx):
+	def __init__(self, sess, model, go_idx, beam_width=2):
 		self.sess = sess
 		self.model = model
 		self.go_idx = go_idx
+		self.beam_width = beam_width
 
-	def decode(self, sentence, target_length, beam_width):	
+	def decode(self, encoder_input, target_length):	
 		sess = self.sess
 		model = self.model
 		go_idx = self.go_idx
-
-		N = sentence.shape[0]
+		beam_width = self.beam_width
+		encoder_input = np.array(encoder_input, dtype=np.int32)
+	
+		N = encoder_input.shape[0]
 		for_indexing = np.arange(N).reshape(-1, 1) * beam_width * beam_width # [N, 1]
 
 		input_token = np.zeros([N*beam_width, target_length+1], np.int32) # go || target_length
@@ -58,17 +62,17 @@ class beam:
 		
 		encoder_embedding = sess.run(tf.contrib.seq2seq.tile_batch(model.encoder_embedding, beam_width),  
 					{
-						model.sentence:sentence, 
+						model.encoder_input:encoder_input, 
 						model.keep_prob:1, 
 					}
-				) # [N*beam_width, self.sentence_length, self.embedding_size]
+				) # [N*beam_width, self.encoder_input_length, self.embedding_size]
 		
 
 		for index in range(target_length):
 			prob, indices = sess.run([model.top_k_prob, model.top_k_indices], 
 						{
 							model.feed_encoder_embedding:encoder_embedding, 
-							model.target:input_token, 
+							model.decoder_input:input_token[:, :-1], 
 							model.keep_prob:1,
 							model.time_step:index,
 							model.beam_width:beam_width
@@ -136,6 +140,22 @@ class beam:
 
 		# [N, target_length]
 		return indices_list[:, 0, :] # batch마다 가장 probability가 높은 결과 리턴.
+
+
+
+
+class utils:
+	def correct(self, pred, target):
+		# pred, target: [N, target_length]
+		target_length = target.shape[1]
+
+		correct_check = np.equal(pred, target) # [N, target_length]
+		correct_check = np.sum(correct_check, axis=-1)//target_length # [N] 
+		correct_check = np.sum(correct_check) # scalar == correct num
+		return correct_check
+
+
+
 
 
 

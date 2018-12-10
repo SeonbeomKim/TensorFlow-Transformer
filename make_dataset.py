@@ -1,6 +1,5 @@
 import numpy as np
 import csv
-import collections
 import os
 
 
@@ -55,10 +54,10 @@ def save_dictionary(path, dictionary):
 
 
 
-def bpe_to_csv(data_path, out_name, bpe2idx, read_line=500000, maximum_length=200, info='source'): #info: 'source' or 'target'
+def bpe_to_csv(data_path, out_name, bpe2idx, read_line=500000, info='source', write_mode='w'): #info: 'source' or 'target'
 	cache = load_dictionary(npy_path+'cache.npy')
 
-	o = open(out_name, 'w', newline='', encoding='utf-8')
+	o = open(out_name, write_mode, newline='', encoding='utf-8')
 	wr = csv.writer(o)
 
 	with open(data_path, 'r', encoding='utf-8') as f:
@@ -70,7 +69,11 @@ def bpe_to_csv(data_path, out_name, bpe2idx, read_line=500000, maximum_length=20
 				print(out_name, i+1, '/', read_line)
 
 			# bpe2idx
-			row_idx = []
+			if info == 'target':
+				row_idx = [bpe2idx['</g>']]
+			else:
+				row_idx = []
+
 			for word in sentence.split():
 				if word in bpe2idx:
 					row_idx.append(bpe2idx[word])
@@ -87,9 +90,9 @@ def bpe_to_csv(data_path, out_name, bpe2idx, read_line=500000, maximum_length=20
 
 
 
-def source_target_bucketing_and_concat(input_name, target_name, bucket, pad_value=-1):
+def source_target_bucketing_and_concat(input_name, target_name, bucket, bpe2idx):
 
-	bucket_dict = collections.defaultdict(int) # tuple form으로 key 사용 가능함.
+	bucket_dict = {}
 	for bucket_list in bucket:
 		bucket_dict[bucket_list] = [] # key 초기화.
 
@@ -113,13 +116,13 @@ def source_target_bucketing_and_concat(input_name, target_name, bucket, pad_valu
 								source_sentence, 
 								(0, bucket_list[0]-len(source_sentence)),
 								'constant',
-								constant_values = pad_value # pad value
+								constant_values = bpe2idx['</p>'] # pad value
 							)
 					target_sentence = np.pad(
 								target_sentence, 
 								(0, bucket_list[1]-len(target_sentence)),
 								'constant',
-								constant_values = pad_value # pad value
+								constant_values = bpe2idx['</p>'] # pad value
 							)
 						
 					bucket_dict[bucket_list].append(np.concatenate((source_sentence, target_sentence)))
@@ -136,8 +139,8 @@ def source_target_bucketing_and_concat(input_name, target_name, bucket, pad_valu
 
 def split_train_validation(bucket_concat_dict, vali_ratio=0.1):
 	
-	train_bucket_dict = collections.defaultdict(int)
-	validation_bucket_dict = collections.defaultdict(int)
+	train_bucket_dict = {}
+	validation_bucket_dict = {}
 
 	for key in bucket_concat_dict:
 		if len(bucket_concat_dict[key]) > 0:
@@ -160,32 +163,41 @@ def split_train_validation(bucket_concat_dict, vali_ratio=0.1):
 
 
 
-
-def bpe2idx_and_split_dataset(bpe_data_list, out_name_list, bucket, vali_ratio=0.1):
+def bpe2idx_make_train_valid_set(bpe_data_list, out_name_list, bucket, vali_ratio=0.1):
 	#maximum = get_maximum_length(data) #143임
 	
-
 	#bpe2idx
 	bpe2idx = load_dictionary(npy_path+'bpe2idx.npy')
 
 	# bpe2idx csv 생성.
-	bpe_to_csv(bpe_data_list[0], out_name_list[0], bpe2idx, read_line=500000, maximum_length=200, info='source')
-	bpe_to_csv(bpe_data_list[1], out_name_list[1], bpe2idx, read_line=500000, maximum_length=200, info='target')
+	bpe_to_csv(bpe_data_list[0], out_name_list[0], bpe2idx, read_line=500000, info='source')
+	bpe_to_csv(bpe_data_list[1], out_name_list[1], bpe2idx, read_line=500000, info='target')
 
 	#source_target bucketing and concat
-	bucket_concat_dict = source_target_bucketing_and_concat(out_name_list[0], out_name_list[1], bucket, pad_value=-1)
+	bucket_concat_dict = source_target_bucketing_and_concat(out_name_list[0], out_name_list[1], bucket, bpe2idx)
 
 	#split and save as npy format
 	split_train_validation(bucket_concat_dict, vali_ratio)
 
 
+def bpe2idx_make_test_set(bpe_data_list, out_name_list):
+	bpe2idx = load_dictionary(npy_path+'bpe2idx.npy')
+
+	for data_path in bpe_data_list:
+		bpe_to_csv(data_path, out_name_list[0], bpe2idx, info='source', write_mode='a') # 한 파일에 테스트셋 합치기.
+
 
 # (source, target)
-bucket = [(10, 30), (20, 40), (30, 50), (40, 60), (50, 70), (60, 80), (80, 100), (100, 120), (120, 140), (150, 170), (180, 200)]
+bucket = [(10, 30), (20, 40), (50, 70), (80, 100), (110, 140), (150, 170), (180, 200)]
 
 npy_path = './bpe_dataset/'
+'''
 bpe_data_list = ['./bpe_dataset/bpe_wmt17.en', './bpe_dataset/bpe_wmt17.de']
 out_name = ['./bpe_dataset/bpe2idx_en.csv', './bpe_dataset/bpe2idx_de.csv']
+bpe2idx_make_train_valid_set(bpe_data_list, out_name, bucket, vali_ratio=0.1)
+'''
 
-bpe2idx_and_split_dataset(bpe_data_list, out_name, bucket, vali_ratio=0.1)
+bpe_test_data_list = ['./bpe_dataset/bpe_newstest2014.en', './bpe_dataset/bpe_newstest2015.en', './bpe_dataset/bpe_newstest2016.en']
+test_out_name = ['./bpe_dataset/testset.csv']
+bpe2idx_make_test_set(bpe_test_data_list, test_out_name)
 
