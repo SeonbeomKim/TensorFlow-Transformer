@@ -145,15 +145,15 @@ class beam:
 
 
 class utils:
-	def correct(self, pred, target):
-		# pred, target: [N, target_length]
-		target_length = target.shape[1]
+	def __init__(self):
+		import nltk
 
-		correct_check = np.equal(pred, target) # [N, target_length]
-		correct_check = np.sum(correct_check, axis=-1)//target_length # [N] 
-		correct_check = np.sum(correct_check) # scalar == correct num
-		return correct_check
+	def bleu(self, pred, target):
+		#pred: 공백으로 split된 1차원 리스트
+		#target: 공백으로 split된 1차원 리스트
 
+		score = nltk.translate.bleu_score.sentence_bleu([pred], target)
+		return score
 
 
 
