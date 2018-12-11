@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import nltk
 
 class greedy:
 	def __init__(self, sess, model, go_idx):
@@ -146,13 +147,22 @@ class beam:
 
 class utils:
 	def __init__(self):
-		import nltk
+		pass
 
-	def bleu(self, pred, target):
-		#pred: 공백으로 split된 1차원 리스트
-		#target: 공백으로 split된 1차원 리스트
+	def bleu(self, target, pred):
+		smoothing = nltk.translate.bleu_score.SmoothingFunction()
 
-		score = nltk.translate.bleu_score.sentence_bleu([pred], target)
+
+		score = nltk.translate.bleu_score.corpus_bleu(target, pred, smoothing_function=smoothing.method3)
+		#score = nltk.translate.bleu_score.corpus_bleu(target, pred, smoothing_function=smoothing.method4)
+		#score = nltk.translate.bleu_score.corpus_bleu(pred, target,smoothing_function=smoothing.method4)
+		#score = nltk.translate.bleu_score.corpus_bleu(pred, target, weights=(1.0,))#,smoothing_function=smoothing.method1)
+		#score = nltk.translate.bleu_score.corpus_bleu(pred, target, weights=(0.5, 0.5))
+		
+
+
+		#score = nltk.translate.bleu_score.sentence_bleu(tuple(pred), target)
+		#score = nltk.translate.bleu_score.sentence_bleu([pred], target, smoothing_function=smoothing.method4)
 		return score
 
 
