@@ -19,8 +19,8 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 			if i == read_line:
 				break
 
-			if (i+1) % 500000 == 0:
-				print(out_path, i+1)
+			if (i+1) % 1000000 == 0:
+				print(out_path, i+1, '/', read_line)
 
 			# bpe2idx
 			if info == 'target':
@@ -40,20 +40,25 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 			wr.writerow(row_idx)
 
 	o.close()
-	print('saved', out_path, '\n')
+	print('saved', out_path)
 
 
 
-def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
+def source_target_bucketing_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
 	if not os.path.exists(out_path):
 		os.makedirs(out_path)
 
 	# 저장시킬 object 생성 
-	open_list = []
+	source_open_list = []
+	target_open_list = []
 	for bucket_size in bucket:
-		o = open(out_path+str(bucket_size)+'.csv', file_mode, newline='')
-		o_csv = csv.writer(o)
-		open_list.append((o, o_csv))
+		o_s = open(out_path+'source_'+str(bucket_size)+'.csv', file_mode, newline='')
+		o_s_csv = csv.writer(o_s)
+		source_open_list.append((o_s, o_s_csv))
+		
+		o_t = open(out_path+'target_'+str(bucket_size)+'.csv', file_mode, newline='')
+		o_t_csv = csv.writer(o_t)
+		target_open_list.append((o_t, o_t_csv))
 
 
 	with open(source_path, 'r', newline='') as source, open(target_path, 'r', newline='') as target:
@@ -61,7 +66,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 		target_wr = csv.reader(target)
 
 		for i, sentence in enumerate(zip(source_wr, target_wr)):
-			if (i+1) % 500000 == 0:
+			if (i+1) % 1000000 == 0:
 				print('line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
@@ -82,39 +87,44 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 							'constant',
 							constant_values = pad_idx # bpe2idx['</p>'] # pad value
 						)
-					open_list[bucket_index][1].writerow(np.concatenate((source_sentence, target_sentence)))	
+					source_open_list[bucket_index][1].writerow(source_sentence)
+					target_open_list[bucket_index][1].writerow(target_sentence)
 					break
 	
 	# close object 
-	for o, _ in open_list:
-		o.close()
-	print('saved', out_path, '\n')
-
+	for i in range(len(bucket)):
+		source_open_list[i][0].close()
+		target_open_list[i][0].close()
+	print('saved', out_path)
 
 
 # source는 idx->bucketing, target은 원본 그대로. 둘이 concat
-def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
+def source_bucketing_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
 	if not os.path.exists(out_path):
 		os.makedirs(out_path)
 
+
 	# 저장시킬 object 생성 
-	open_list = []
+	source_open_list = []
+	target_open_list = []
 	for bucket_size in bucket:
-		o = open(out_path+str(bucket_size)+'.csv', file_mode, newline='', encoding='utf-8')
-		o_csv = csv.writer(o)
-		open_list.append((o, o_csv))
+		o_s = open(out_path+'source_'+str(bucket_size)+'.csv', file_mode, newline='')
+		o_s_csv = csv.writer(o_s)
+		source_open_list.append((o_s, o_s_csv))
+		
+		o_t = open(out_path+'target_'+str(bucket_size)+'.txt', file_mode, encoding='utf-8')
+		target_open_list.append(o_t)
 
 
 	with open(source_path, 'r', newline='') as source, open(target_path, 'r', newline='', encoding='utf-8') as target:
 		source_wr = csv.reader(source)
-		target_wr = csv.reader(target)
 
-		for i, sentence in enumerate(zip(source_wr, target_wr)):
-			if (i+1) % 500000 == 0:
+		for i, sentence in enumerate(zip(source_wr, target)):
+			if (i+1) % 1000000 == 0:
 				print('line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
-			target_sentence = sentence[1][0].split()
+			target_sentence = sentence[1]
 
 			for bucket_index, bucket_size in enumerate(bucket):
 				source_size, target_size = bucket_size
@@ -125,23 +135,23 @@ def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, buck
 							'constant',
 							constant_values = pad_idx# bpe2idx['</p>'] # pad value
 						)
-					open_list[bucket_index][1].writerow(np.concatenate((source_sentence, target_sentence)))	
+					source_open_list[bucket_index][1].writerow(source_sentence)
+					target_open_list[bucket_index].write(target_sentence)
 					break
 	
 	# close object 
-	for o, _ in open_list:
-		o.close()
-	print('saved', out_path, '\n')
-
-
+	for i in range(len(bucket)):
+		source_open_list[i][0].close()
+		target_open_list[i].close()
+	print('saved', out_path)
 
 
 def make_train_dataset_out_csv(source_target_path, source_target_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None):
-	print('start make_dataset_with_target')
+	print('start make_train_dataset')
 	print('source:', source_target_path[0], 'idx_out_source:', source_target_idx_out_path[0])
 	print('target:', source_target_path[1], 'idx_out_target:', source_target_idx_out_path[1])
 	print('dataset:', dataset_out_path, '\n')
-
+	'''
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
 			out_path=source_target_idx_out_path[0], 
@@ -157,23 +167,23 @@ def make_train_dataset_out_csv(source_target_path, source_target_idx_out_path, d
 			read_line=read_line, 
 			info='target'
 		) 
-
+	'''
 	# idx 데이터들 버켓팅(패딩포함)하고, concat
-	source_target_bucketing_and_concat_out_csv(
+	source_target_bucketing_out_csv(
 			source_path=source_target_idx_out_path[0], 
 			target_path=source_target_idx_out_path[1], 
 			out_path=dataset_out_path, 
 			bucket=bucket, 
 			pad_idx=bpe2idx['</p>']
 		)
-
+	print('\n\n')
 
 def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None, file_mode='w'):
-	print('start make_dataset_without_target')
+	print('start make_valid_test_dataset')
 	print('source:', source_target_path[0], 'idx_out_source:', source_idx_out_path)
 	print('target:', source_target_path[1])
 	print('dataset:', dataset_out_path, '\n')
-
+	'''
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
 			out_path=source_idx_out_path, 
@@ -181,8 +191,8 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 			read_line=read_line, 
 			info='source'
 		)
-
-	source_bucketing_and_concat_out_csv(
+	'''
+	source_bucketing_out_csv(
 			source_path=source_idx_out_path, 
 			target_path=source_target_path[1], 
 			out_path=dataset_out_path, 
@@ -190,6 +200,7 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 			pad_idx=bpe2idx['</p>'], 
 			file_mode=file_mode
 		)
+	print('\n\n')
 
 # (source, target)
 bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
@@ -219,4 +230,3 @@ source_target_path = ['./bpe_dataset/bpe_newstest2016.en', './dataset/dev.tar/ne
 source_idx_out_path = './bpe_dataset/source_idx_newstest2016_en.csv'
 dataset_out_path = './bpe_dataset/test_set/'
 make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None, file_mode='a')
-
