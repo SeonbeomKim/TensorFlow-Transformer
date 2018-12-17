@@ -20,7 +20,7 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 				break
 
 			if (i+1) % 1000000 == 0:
-				print(out_path, i+1, '/', read_line)
+				print(out_path, i+1)
 
 			# bpe2idx
 			if info == 'target':
@@ -40,11 +40,11 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 			wr.writerow(row_idx)
 
 	o.close()
-	print('saved', out_path)
+	print('saved', out_path, '\n')
 
 
 
-def source_target_bucketing_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
+def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
 	if not os.path.exists(out_path):
 		os.makedirs(out_path)
 
@@ -98,8 +98,9 @@ def source_target_bucketing_out_csv(source_path, target_path, out_path, bucket, 
 	print('saved', out_path)
 
 
+
 # source는 idx->bucketing, target은 원본 그대로. 둘이 concat
-def source_bucketing_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
+def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, bucket, pad_idx, file_mode='w'):
 	if not os.path.exists(out_path):
 		os.makedirs(out_path)
 
@@ -151,7 +152,7 @@ def make_train_dataset_out_csv(source_target_path, source_target_idx_out_path, d
 	print('source:', source_target_path[0], 'idx_out_source:', source_target_idx_out_path[0])
 	print('target:', source_target_path[1], 'idx_out_target:', source_target_idx_out_path[1])
 	print('dataset:', dataset_out_path, '\n')
-	'''
+
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
 			out_path=source_target_idx_out_path[0], 
@@ -167,9 +168,9 @@ def make_train_dataset_out_csv(source_target_path, source_target_idx_out_path, d
 			read_line=read_line, 
 			info='target'
 		) 
-	'''
+
 	# idx 데이터들 버켓팅(패딩포함)하고, concat
-	source_target_bucketing_out_csv(
+	source_target_bucketing_and_concat_out_csv(
 			source_path=source_target_idx_out_path[0], 
 			target_path=source_target_idx_out_path[1], 
 			out_path=dataset_out_path, 
@@ -183,7 +184,7 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 	print('source:', source_target_path[0], 'idx_out_source:', source_idx_out_path)
 	print('target:', source_target_path[1])
 	print('dataset:', dataset_out_path, '\n')
-	'''
+
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
 			out_path=source_idx_out_path, 
@@ -191,8 +192,8 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 			read_line=read_line, 
 			info='source'
 		)
-	'''
-	source_bucketing_out_csv(
+
+	source_bucketing_and_concat_out_csv(
 			source_path=source_idx_out_path, 
 			target_path=source_target_path[1], 
 			out_path=dataset_out_path, 
