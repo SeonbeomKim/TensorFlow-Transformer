@@ -190,9 +190,9 @@ train_dict = read_data_set(train_source_path, train_target_path, bucket)
 valid_dict = read_data_set(valid_source_path, valid_target_path, bucket, 'txt')
 test_dict = read_data_set(test_source_path, test_target_path, bucket, 'txt')
 
-train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = 25000) # batch_token // len(sentence||target token) == batch_size
-valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 25000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 25000) # batch_token // len(sentence||target token) == batch_size
+train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
+valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
+test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
 
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 idx2bpe = load_data(idx2bpe_path, mode='dictionary')

@@ -38,7 +38,7 @@ class bucket_data:
 	def get_number_of_iter(self):
 		num_iter = 0
 		for key in self.data:
-			batch_size = max(self.batch_token // sum(key), sum(key)) # batch_token //sum(@@) 이 0인것을 대비함. 
+			batch_size = self.batch_token // sum(key) # batch_token //sum(@@) 이 0인것을 대비함. 
 			num_iter += int(np.ceil(len(self.data[key][0])/batch_size))
 		return num_iter
 
