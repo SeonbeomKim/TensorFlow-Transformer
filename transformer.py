@@ -52,32 +52,32 @@ class Transformer:
 
 		with tf.name_scope("masks"):
 			encoder_input_not_pad = tf.cast(
-						tf.not_equal(self.encoder_input, self.pad_idx),
-						dtype=tf.float32
-					) # [N, encoder_input_length]
+					tf.not_equal(self.encoder_input, self.pad_idx),
+					dtype=tf.float32
+				) # [N, encoder_input_length]
 			self.encoder_input_mask = tf.expand_dims(
-						encoder_input_not_pad, 
-						axis=-1
-					) # [N, encoder_input_length, 1]
+					encoder_input_not_pad, 
+					axis=-1
+				) # [N, encoder_input_length, 1]
 			encoder_multihead_attention_mask = tf.matmul(
-						self.encoder_input_mask,
-						tf.transpose(self.encoder_input_mask, [0, 2, 1])
-					) # [N, encoder_input_length, encoder_input_length]
+					self.encoder_input_mask,
+					tf.transpose(self.encoder_input_mask, [0, 2, 1])
+				) # [N, encoder_input_length, encoder_input_length]
 			self.encoder_multihead_attention_mask = tf.tile(
-						encoder_multihead_attention_mask, 
-						[self.multihead_num, 1, 1]
-					) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
+					encoder_multihead_attention_mask, 
+					[self.multihead_num, 1, 1]
+				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
 
 			self.decoder_mask = tf.sequence_mask(
-						tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
-						maxlen=self.decoder_input_length,#.eval(session=sess),
-						dtype=tf.float32
-					) # [decoder_input_length, decoder_input_length]
+					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
+					maxlen=self.decoder_input_length,#.eval(session=sess),
+					dtype=tf.float32
+				) # [decoder_input_length, decoder_input_length]
 			self.target_pad_mask = tf.cast( #sequence_mask처럼 생성됨
-						tf.not_equal(self.target, self.pad_idx),
-						dtype=tf.float32
-					) # [N, target_length] (include eos)
-		
+					tf.not_equal(self.target, self.pad_idx),
+					dtype=tf.float32
+				) # [N, target_length] (include eos)
+	
 
 		with tf.name_scope('encoder'):
 			self.encoder_input_embedding = self.embedding_and_PE(self.encoder_input, self.encoder_input_length)
@@ -89,14 +89,14 @@ class Transformer:
 			self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
 					
 			first_eos_of_decoder_pred = tf.argmax(
-						tf.cast(tf.equal(self.decoder_pred, self.eos_idx), tf.int32),
-						axis = -1
-					) # [N], find first eos index ex) [5, 6, 4, 5, 5]
+					tf.cast(tf.equal(self.decoder_pred, self.eos_idx), tf.int32),
+					axis = -1
+				) # [N], find first eos index ex) [5, 6, 4, 5, 5]
 			eos_mask_of_decoder_pred = tf.sequence_mask(
-						first_eos_of_decoder_pred,
-						maxlen = self.decoder_input_length,
-						dtype = tf.int32
-					)
+					first_eos_of_decoder_pred,
+					maxlen = self.decoder_input_length,
+					dtype = tf.int32
+				)
 			self.decoder_pred_except_eos = self.decoder_pred * eos_mask_of_decoder_pred
 			self.decoder_pred_except_eos += (eos_mask_of_decoder_pred - 1) * -self.pad_idx # the value of the masked position is pad_value
 
@@ -107,14 +107,14 @@ class Transformer:
 			self.top_k_prob, self.top_k_indices = self.beam_search_graph(self.infer_embedding, self.time_step, self.beam_width)
 
 			first_eos_index = tf.argmax(
-						tf.cast(tf.equal(self.feed_for_except_eos, self.eos_idx), tf.int32),
-						axis = -1
-					) # [N], find first eos index ex) [5, 6, 4, 5, 5]
+					tf.cast(tf.equal(self.feed_for_except_eos, self.eos_idx), tf.int32),
+					axis = -1
+				) # [N], find first eos index ex) [5, 6, 4, 5, 5]
 			eos_mask_of_feed_for_except_eos = tf.sequence_mask(
-						first_eos_index,
-						maxlen = tf.shape(self.feed_for_except_eos)[1],
-						dtype = tf.int32
-					)
+					first_eos_index,
+					maxlen = tf.shape(self.feed_for_except_eos)[1],
+					dtype = tf.int32
+				)
 			self.except_eos = self.feed_for_except_eos * eos_mask_of_feed_for_except_eos
 			self.except_eos += (eos_mask_of_feed_for_except_eos - 1) * -self.pad_idx # the value of the masked position is pad_value
 
@@ -122,18 +122,18 @@ class Transformer:
 		with tf.name_scope('train_cost'): 
 			# make smoothing target one hot vector
 			target_one_hot = tf.one_hot(
-						self.target, 
-						depth=self.voca_size,
-						on_value = 1., # tf.float32
-						off_value = 0., # tf.float32
-					) # [N, self.target_length, self.voca_size]
+					self.target, 
+					depth=self.voca_size,
+					on_value = 1., # tf.float32
+					off_value = 0., # tf.float32
+				) # [N, self.target_length, self.voca_size]
 			self.smoothing_target_one_hot = target_one_hot * (1-self.label_smoothing) + (self.label_smoothing / self.voca_size)
 			
 			# calc train_cost
 			self.train_cost = tf.nn.softmax_cross_entropy_with_logits(
-						labels = self.smoothing_target_one_hot, 
-						logits = self.decoder_embedding
-					) # [N, self.target_length]
+					labels = self.smoothing_target_one_hot, 
+					logits = self.decoder_embedding
+				) # [N, self.target_length]
 			self.train_cost *= self.target_pad_mask # except pad
 			self.train_cost = tf.reduce_sum(self.train_cost) / tf.reduce_sum(self.target_pad_mask)
 
@@ -159,9 +159,9 @@ class Transformer:
 
 		# get top_k(beam_size) argmax prob, indices
 		top_k_prob, top_k_indices = tf.nn.top_k(
-					softmax_infer_embedding, # [N*beam_width, self.voca_size]
-					beam_width
-				) # [N*beam_width, beam_width], [N*beam_width, beam_width]
+				softmax_infer_embedding, # [N*beam_width, self.voca_size]
+				beam_width
+			) # [N*beam_width, beam_width], [N*beam_width, beam_width]
 
 		top_k_prob = tf.log(tf.reshape(top_k_prob, [-1, 1])) # [N*beam_width*beam_width, 1]
 		top_k_indices = tf.reshape(top_k_indices, [-1, 1]) # [N*beam_width*beam_width, 1]
@@ -173,9 +173,9 @@ class Transformer:
 	def embedding_and_PE(self, data, data_length):
 		# embedding lookup and scale
 		embedding = tf.nn.embedding_lookup(
-					self.embedding_table, 
-					data
-				) # [N, self.data_length, self.embedding_size]		
+				self.embedding_table, 
+				data
+			) # [N, self.data_length, self.embedding_size]		
 		if self.is_embedding_scale is True:
 			embedding *= self.embedding_size**0.5
 		# Add Position Encoding
@@ -195,19 +195,19 @@ class Transformer:
 		for i in range(self.encoder_decoder_stack): #6
 			# Multi-Head Attention
 			Multihead_add_norm = self.multi_head_attention_add_norm(
-						query=encoder_input_embedding,
-						key_value=encoder_input_embedding,
-						activation=None,
-						name='encoder'+str(i)
-					) # [N, self.encoder_input_length, self.embedding_size]
-			
+					query=encoder_input_embedding,
+					key_value=encoder_input_embedding,
+					activation=None,
+					name='encoder'+str(i)
+				) # [N, self.encoder_input_length, self.embedding_size]
+		
 			# Feed Forward
 			Dense_add_norm = self.dense_add_norm(
-						Multihead_add_norm, 
-						self.embedding_size, 
-						activation=tf.nn.relu,
-						name='encoder_dense'+str(i)
-					) # [N, self.encoder_input_length, self.embedding_size]
+					Multihead_add_norm, 
+					self.embedding_size, 
+					activation=tf.nn.relu,
+					name='encoder_dense'+str(i)
+				) # [N, self.encoder_input_length, self.embedding_size]
 			
 			# encoder_input_embedding masking(pad postition)
 			Dense_add_norm *= encoder_input_mask			
@@ -225,42 +225,42 @@ class Transformer:
 		for i in range(self.encoder_decoder_stack):
 			# Masked Multi-Head Attention
 			Masked_Multihead_add_norm = self.multi_head_attention_add_norm(
-						query=decoder_input_embedding, 
-						key_value=decoder_input_embedding,
-						mask=self.decoder_mask,
-						activation=None,
-						name='self_attention_decoder'+str(i)
-					)
+					query=decoder_input_embedding, 
+					key_value=decoder_input_embedding,
+					mask=self.decoder_mask,
+					activation=None,
+					name='self_attention_decoder'+str(i)
+				)
 			
 			# Multi-Head Attention(Encoder Decoder Attention)
 			ED_Multihead_add_norm = self.multi_head_attention_add_norm(
-						query=Masked_Multihead_add_norm, 
-						key_value=encoder_embedding,
-						activation=None,
-						name='ED_attention_decoder'+str(i)
-					) 
+					query=Masked_Multihead_add_norm, 
+					key_value=encoder_embedding,
+					activation=None,
+					name='ED_attention_decoder'+str(i)
+				) 
 
 			#Feed Forward
 			Dense_add_norm = self.dense_add_norm(
-						ED_Multihead_add_norm,
-						units=self.embedding_size, 
-						activation=tf.nn.relu,
-						name='decoder_dense'+str(i)
-					) # [N, self.decoder_input_length, self.embedding_size]
+					ED_Multihead_add_norm,
+					units=self.embedding_size, 
+					activation=tf.nn.relu,
+					name='decoder_dense'+str(i)
+				) # [N, self.decoder_input_length, self.embedding_size]
 			decoder_input_embedding = Dense_add_norm
 
 		with tf.variable_scope("decoder_linear", reuse=tf.AUTO_REUSE):
 			decoder_embedding = tf.layers.dense(
-						Dense_add_norm, 
-						self.voca_size, 
-						activation=None
-					) # [N, self.decoder_input_length, self.voca_size]
+					Dense_add_norm, 
+					self.voca_size, 
+					activation=None
+				) # [N, self.decoder_input_length, self.voca_size]
 
 		decoder_pred = tf.argmax(
-					decoder_embedding, 
-					axis=-1, 
-					output_type=tf.int32
-				) # [N, self,decoder_input_length]
+				decoder_embedding, 
+				axis=-1, 
+				output_type=tf.int32
+			) # [N, self,decoder_input_length]
 
 		return decoder_embedding, decoder_pred
 
@@ -271,23 +271,23 @@ class Transformer:
 		with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
 			# for문으로 self.multihead_num번 돌릴 필요 없이 embedding_size 만큼 만들고 self.multihead_num등분해서 연산하면 됨.	
 			V = tf.layers.dense( # layers dense는 배치(N)별로 동일하게 연산됨.	
-						key_value, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, key_value_sequence_length, self.embedding_size]
+					key_value, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, key_value_sequence_length, self.embedding_size]
 			K = tf.layers.dense(
-						key_value, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, key_value_sequence_length, self.embedding_size]
+					key_value, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, key_value_sequence_length, self.embedding_size]
 			Q = tf.layers.dense(
-						query, 
-						units=self.embedding_size, 
-						activation=activation, 
-						use_bias=False
-					) # [N, query_sequence_length, self.embedding_size]
+					query, 
+					units=self.embedding_size, 
+					activation=activation, 
+					use_bias=False
+				) # [N, query_sequence_length, self.embedding_size]
 
 			# linear 결과를 self.multihead_num등분하고 연산에 지장을 주지 않도록 batch화 시킴.
 			# https://github.com/Kyubyong/transformer 참고.
@@ -319,9 +319,9 @@ class Transformer:
 			# encoder-decoder attention masking of decoder
 			if 'ED_attention_decoder' in name:
 				ED_attention_decoder_mask = tf.cast(
-							tf.not_equal(key_value, 0),
-							dtype=tf.float32
-						) # [N, key_value_sequence_length, self.embedding_size]
+						tf.not_equal(key_value, 0),
+						dtype=tf.float32
+					) # [N, key_value_sequence_length, self.embedding_size]
 				ED_attention_decoder_mask = tf.transpose(ED_attention_decoder_mask, [0,2,1])[:, 0:1, :] # [N, 1, key_value_sequence_length]
 				ED_attention_decoder_mask = tf.tile(ED_attention_decoder_mask, [self.multihead_num, 1, 1]) # [self.multihead_num*N, 1, key_value_sequence_length]
 				score += ((ED_attention_decoder_mask-1) * 1e+10)	
@@ -337,10 +337,10 @@ class Transformer:
 			
 			# Linear
 			Multihead = tf.layers.dense(
-						concat, 
-						units=self.embedding_size, 
-						activation=activation
-					) # [N, query_sequence_length, self.embedding_size]
+					concat, 
+					units=self.embedding_size, 
+					activation=activation
+				) # [N, query_sequence_length, self.embedding_size]
 			# Drop Out
 			Multihead = tf.nn.dropout(Multihead, keep_prob=self.keep_prob)
 			# Add
