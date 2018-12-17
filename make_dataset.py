@@ -19,8 +19,8 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 			if i == read_line:
 				break
 
-			if (i+1) % 50000 == 0:
-				print(out_path, i+1, '/', read_line)
+			if (i+1) % 500000 == 0:
+				print(out_path, i+1)
 
 			# bpe2idx
 			if info == 'target':
@@ -40,7 +40,7 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 			wr.writerow(row_idx)
 
 	o.close()
-	print('saved', out_path)
+	print('saved', out_path, '\n')
 
 
 
@@ -61,7 +61,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 		target_wr = csv.reader(target)
 
 		for i, sentence in enumerate(zip(source_wr, target_wr)):
-			if (i+1) % 50000 == 0:
+			if (i+1) % 500000 == 0:
 				print('line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
@@ -88,7 +88,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 	# close object 
 	for o, _ in open_list:
 		o.close()
-	print('saved', out_path)
+	print('saved', out_path, '\n')
 
 
 
@@ -100,22 +100,22 @@ def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, buck
 	# 저장시킬 object 생성 
 	open_list = []
 	for bucket_size in bucket:
-		o = open(out_path+str(bucket_size)+'.csv', file_mode, newline='')
+		o = open(out_path+str(bucket_size)+'.csv', file_mode, newline='', encoding='utf-8')
 		o_csv = csv.writer(o)
 		open_list.append((o, o_csv))
 
 
-	with open(source_path, 'r', newline='') as source, open(target_path, 'r', newline='') as target:
+	with open(source_path, 'r', newline='') as source, open(target_path, 'r', newline='', encoding='utf-8') as target:
 		source_wr = csv.reader(source)
 		target_wr = csv.reader(target)
 
 		for i, sentence in enumerate(zip(source_wr, target_wr)):
-			if (i+1) % 50000 == 0:
+			if (i+1) % 500000 == 0:
 				print('line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
-			target_sentence = np.array(sentence[1], dtype=np.int32)
-			
+			target_sentence = sentence[1][0].split()
+
 			for bucket_index, bucket_size in enumerate(bucket):
 				source_size, target_size = bucket_size
 				if len(source_sentence) <= source_size:
@@ -131,16 +131,16 @@ def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, buck
 	# close object 
 	for o, _ in open_list:
 		o.close()
-	print('saved', out_path)
+	print('saved', out_path, '\n')
 
 
 
 
-def make_dataset_out_csv_for_train_valid(source_target_path, source_target_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None):
+def make_train_dataset_out_csv(source_target_path, source_target_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None):
 	print('start make_dataset_with_target')
-	print('source': source_target_path[0], 'idx_out_source': source_target_idx_out_path[0])
-	print('target': source_target_path[1], 'idx_out_target': source_target_idx_out_path[1])
-	print('dataset': dataset_out_path)
+	print('source:', source_target_path[0], 'idx_out_source:', source_target_idx_out_path[0])
+	print('target:', source_target_path[1], 'idx_out_target:', source_target_idx_out_path[1])
+	print('dataset:', dataset_out_path, '\n')
 
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
@@ -168,11 +168,11 @@ def make_dataset_out_csv_for_train_valid(source_target_path, source_target_idx_o
 		)
 
 
-def make_dataset_out_csv_for_test(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None):
+def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None, file_mode='w'):
 	print('start make_dataset_without_target')
-	print('source': source_target_path[0], 'idx_out_source': source_idx_out_path)
-	print('target': source_target_path[1])
-	print('dataset': dataset_out_path)
+	print('source:', source_target_path[0], 'idx_out_source:', source_idx_out_path)
+	print('target:', source_target_path[1])
+	print('dataset:', dataset_out_path, '\n')
 
 	bpe2idx_out_csv(
 			data_path=source_target_path[0], 
@@ -188,7 +188,7 @@ def make_dataset_out_csv_for_test(source_target_path, source_idx_out_path, datas
 			out_path=dataset_out_path, 
 			bucket=bucket, 
 			pad_idx=bpe2idx['</p>'], 
-			file_mode='a'
+			file_mode=file_mode
 		)
 
 # (source, target)
@@ -200,16 +200,39 @@ bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 source_target_path = ['./bpe_dataset/bpe_wmt17.en', './bpe_dataset/bpe_wmt17.de']
 source_target_out_path = ['./bpe_dataset/source_idx_wmt17_en.csv', './bpe_dataset/target_idx_wmt17_de.csv']
 dataset_out_path = './bpe_dataset/train_set/'
-make_dataset_with_target(source_target_path, source_target_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
+make_train_dataset_out_csv(source_target_path, source_target_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
 
 # make validset
-source_target_path = ['./bpe_dataset/bpe_newstest2014.en', './bpe_dataset/idx_newstest2014_en.csv']
-source_target_out_path = ['./bpe_dataset/source_idx_wmt17_en.csv', './bpe_dataset/target_idx_wmt17_de.csv']
-dataset_out_path = './bpe_dataset/train_set/'
-make_dataset_with_target(source_target_path, source_target_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
+source_target_path = ['./bpe_dataset/bpe_newstest2014.en', './dataset/dev.tar/newstest2014.tc.de']
+source_idx_out_path = './bpe_dataset/source_idx_newstest2014_en.csv'
+dataset_out_path = './bpe_dataset/valid_set/'
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
 
+# make testset
+source_target_path = ['./bpe_dataset/bpe_newstest2015.en', './dataset/dev.tar/newstest2015.tc.de']
+source_idx_out_path = './bpe_dataset/source_idx_newstest2015_en.csv'
+dataset_out_path = './bpe_dataset/test_set/'
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
 
+# make testset
+source_target_path = ['./bpe_dataset/bpe_newstest2016.en', './dataset/dev.tar/newstest2016.tc.de']
+source_idx_out_path = './bpe_dataset/source_idx_newstest2016_en.csv'
+dataset_out_path = './bpe_dataset/test_set/'
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None, file_mode='a')
 
+'''
+with open('./bpe_dataset/valid_set/(10, 40).csv', newline='', encoding='utf-8') as f:
+	wr = csv.reader(f)
+	for i in wr:
+		print(i)
+print()
+with open('./dataset/dev.tar/newstest2014.tc.de', newline='', encoding='utf-8') as f:
+	wr = csv.reader(f)
+	for z, i in enumerate(wr):
+		print(i)
+		if z==1:
+			break
+'''
 '''
 data_path = {
 		'source':['./bpe_dataset/bpe_wmt17.en',
