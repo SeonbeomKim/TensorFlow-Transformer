@@ -27,7 +27,8 @@ class greedy:
 			) # [N, self.encoder_input_length, self.embedding_size]
 		
 		for index in range(target_length):
-			current_pred, current_embedding = sess.run([model.infer_pred, model.infer_embedding],
+			#current_pred, current_embedding = sess.run([model.infer_pred, model.infer_embedding],
+			current_pred, _ = sess.run([model.infer_pred, model.infer_embedding],
 					{
 						model.feed_encoder_embedding:encoder_embedding,
 						model.decoder_input:input_token[:, :-1],

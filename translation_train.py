@@ -10,7 +10,7 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-#bucket = [(100, 130), (140, 170), (180, 210)]
+#bucket = [(100, 130), (140, 170), (180, 210)] # for test
 bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
@@ -77,13 +77,26 @@ def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
 	return dictionary
 		
 
+def get_lr(embedding_size, step_num):
+	'''
+	https://ufal.mff.cuni.cz/pbml/110/art-popel-bojar.pdf
+	step_num(training_steps):  number of iterations, ie. the number of times the optimizer update was run
+		This number also equals the number of mini batches that were processed.
+	'''
+	lr = (embedding_size**-0.5) * min( (step_num**-0.5), (step_num*(warmup_steps**-1.5)) )
+	return lr
 
-def train(model, data, lr):
+
+def train(model, data, epoch):
 	loss = 0
 
 	data.shuffle()
-	for i in tqdm(range(data.total_iter), ncols=50):
-		
+	total_iter = data.total_iter
+
+	for i in tqdm(range(total_iter), ncols=50):
+		step_num = ((epoch-1)*total_iter)+(i+1)
+		lr = get_lr(embedding_size=embedding_size, step_num=step_num) # epoch: [1, @], i:[0, total_iter)
+
 		encoder_input, temp, zz = data.get_batch()
 		decoder_input = temp[:, :-1] 
 		target = temp[:, 1:] # except '</g>'		
@@ -97,8 +110,8 @@ def train(model, data, lr):
 				}
 			)
 		loss += train_loss
-	
-	return loss/data.total_iter
+	print('current step_num:', step_num)
+	return loss/total_iter
 
 
 def infer(model, data):
@@ -109,6 +122,7 @@ def infer(model, data):
 		target_length = bucket_size[1]
 
 		pred = infer_helper.decode(encoder_input, target_length) # [N, target_length]
+		del encoder_input
 		first_eos = np.argmax(pred == bpe2idx['</e>'], axis=1) # [N] 최초로 eos 나오는 index.
 
 		for _pred, _first_eos, _target in (zip(pred, first_eos, target)):
@@ -128,7 +142,7 @@ def infer(model, data):
 def run(model, trainset, validset, testset, restore=0):
 	if restore != 0:
 		model.saver.restore(sess, saver_path+str(restore)+".ckpt")
-
+	
 	with tf.name_scope("tensorboard"):
 		train_loss_tensorboard = tf.placeholder(tf.float32, name='train_loss')
 		valid_bleu_tensorboard = tf.placeholder(tf.float32, name='valid_bleu')
@@ -138,30 +152,46 @@ def run(model, trainset, validset, testset, restore=0):
 		valid_summary = tf.summary.scalar("valid_bleu", valid_bleu_tensorboard)
 		test_summary = tf.summary.scalar("test_bleu", test_bleu_tensorboard)
 				
-		merged_train_valid = tf.summary.merge([train_summary, valid_summary])
-		merged_test = tf.summary.merge([test_summary])
-		#merged = tf.summary.merge_all()
+		merged = tf.summary.merge_all()
 		writer = tf.summary.FileWriter(tensorboard_path, sess.graph)
-
+		#merged_train_valid = tf.summary.merge([train_summary, valid_summary])
+		#merged_test = tf.summary.merge([test_summary])
+		
 
 	if not os.path.exists(saver_path):
 		print("create save directory")
 		os.makedirs(saver_path)
 	
-	save_epoch = 20
 	for epoch in range(restore+1, 20000+1):
-		lr = (embedding_size**-0.5) * min( (epoch**-0.5), (epoch*(warmup_steps**-1.5)) )
-
-		train_loss = train(model, trainset, lr)
+		#train validation test
+		train_loss = train(model, trainset, epoch)
 		valid_bleu = infer(model, validset)
-	
+		test_bleu = infer(model, testset)
+		print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
+		
+		#save
+		model.saver.save(sess, saver_path+str(epoch)+".ckpt")
+		
+		#tensorboard
+		summary = sess.run(merged, {
+					train_loss_tensorboard:train_loss, 
+					valid_bleu_tensorboard:valid_bleu,
+					test_bleu_tensorboard:test_bleu, 
+				}
+			)		
+		writer.add_summary(summary, epoch)
+		
+
+
+
+		'''
 		summary = sess.run(merged_train_valid, {
 					train_loss_tensorboard:train_loss, 
 					valid_bleu_tensorboard:valid_bleu,
 				}
 			)		
 		writer.add_summary(summary, epoch)
-
+		
 		if epoch % save_epoch == 0:
 			test_bleu = infer(model, testset)
 			# tensorboard
@@ -170,17 +200,14 @@ def run(model, trainset, validset, testset, restore=0):
 					}
 				)
 			writer.add_summary(summary, epoch)
-
-			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, 'lr:', lr, '\n')
-
-		else:
-			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'lr:', lr, '\n')
-		
-
-
-		if (epoch) % save_epoch == 0:
 			model.saver.save(sess, saver_path+str(epoch)+".ckpt")
 
+			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
+
+		else:
+			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, '\n')
+		
+		'''
 		
 
 
@@ -190,9 +217,9 @@ train_dict = read_data_set(train_source_path, train_target_path, bucket)
 valid_dict = read_data_set(valid_source_path, valid_target_path, bucket, 'txt')
 test_dict = read_data_set(test_source_path, test_target_path, bucket, 'txt')
 
-train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
-valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 20000) # batch_token // len(sentence||target token) == batch_size
+train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = 17000) # batch_token // len(sentence||target token) == batch_size
+valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 13000) # batch_token // len(sentence||target token) == batch_size
+test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 13000) # batch_token // len(sentence||target token) == batch_size
 
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 idx2bpe = load_data(idx2bpe_path, mode='dictionary')
@@ -201,8 +228,8 @@ idx2bpe = load_data(idx2bpe_path, mode='dictionary')
 print("Model read")
 sess = tf.Session()
 
-warmup_steps = 4000 #//10
-embedding_size = 256#256
+warmup_steps = 4000 #
+embedding_size = 512#256
 encoder_decoder_stack = 3
 
 model = transformer.Transformer(
@@ -221,9 +248,8 @@ model = transformer.Transformer(
 infer_helper = inference_helper.greedy(sess, model, bpe2idx['</g>'])
 utils = inference_helper.utils()
 
-print('run')
+print('run, step_num applied')
 run(model, train_set, valid_set, test_set)
-
 #print(sess.run(model.embedding_table))
 
 #testcode()
