@@ -10,7 +10,7 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-#bucket = [(100, 130), (140, 170), (180, 210)] # for test
+#bucket = [(50,80),(70,100),(100, 130), (140, 170), (180, 210)] # for test
 bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
@@ -29,6 +29,7 @@ def load_data(path, mode=None):
 	data = np.load(path, encoding='bytes')
 	if mode == 'dictionary':
 		data = data.item()
+	print(path, len(data))
 	return data
 
 def _read_csv(path):
@@ -94,7 +95,8 @@ def train(model, data, epoch):
 	total_iter = data.total_iter
 
 	for i in tqdm(range(total_iter), ncols=50):
-		step_num = ((epoch-1)*total_iter)+(i+1)
+		#step_num = ((epoch-1)*total_iter)+(i+1)
+		step_num = ( ( ((epoch-1)*total_iter)+ i ) // 8 ) + 1
 		lr = get_lr(embedding_size=embedding_size, step_num=step_num) # epoch: [1, @], i:[0, total_iter)
 
 		encoder_input, temp, zz = data.get_batch()
@@ -110,6 +112,9 @@ def train(model, data, epoch):
 				}
 			)
 		loss += train_loss
+		if (i+1) % 5000 == 0:
+			print(i+1,loss/(i+1))
+
 	print('current step_num:', step_num)
 	return loss/total_iter
 
@@ -165,12 +170,12 @@ def run(model, trainset, validset, testset, restore=0):
 	for epoch in range(restore+1, 20000+1):
 		#train validation test
 		train_loss = train(model, trainset, epoch)
+		model.saver.save(sess, saver_path+str(epoch)+".ckpt")
 		valid_bleu = infer(model, validset)
 		test_bleu = infer(model, testset)
 		print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
 		
 		#save
-		model.saver.save(sess, saver_path+str(epoch)+".ckpt")
 		
 		#tensorboard
 		summary = sess.run(merged, {
@@ -217,12 +222,14 @@ train_dict = read_data_set(train_source_path, train_target_path, bucket)
 valid_dict = read_data_set(valid_source_path, valid_target_path, bucket, 'txt')
 test_dict = read_data_set(test_source_path, test_target_path, bucket, 'txt')
 
-train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = 17000) # batch_token // len(sentence||target token) == batch_size
-valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 13000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 13000) # batch_token // len(sentence||target token) == batch_size
-
+train_batch_token = 12000
+train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
+valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+print('train_batch_token:', train_batch_token)
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 idx2bpe = load_data(idx2bpe_path, mode='dictionary')
+
 
 
 print("Model read")
@@ -230,7 +237,7 @@ sess = tf.Session()
 
 warmup_steps = 4000 #
 embedding_size = 512#256
-encoder_decoder_stack = 3
+encoder_decoder_stack = 6
 
 model = transformer.Transformer(
 		sess = sess,

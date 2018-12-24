@@ -5,7 +5,7 @@
 import tensorflow as tf #version 1.4
 import numpy as np
 import os
-tf.set_random_seed(787)
+#tf.set_random_seed(787)
 
 class Transformer:
 	def __init__(self, sess, voca_size, embedding_size, is_embedding_scale, PE_sequence_length,
@@ -307,7 +307,7 @@ class Transformer:
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹
-
+			'''
 			# encoder multi-head attention masking
 			if 'encoder' in name:
 				score = score * self.encoder_multihead_attention_mask # zero mask
@@ -328,7 +328,7 @@ class Transformer:
 				# 1 1 0
 				# 1 1 0 
 				# 1 1 0 형태로 마스킹함.
-
+			'''
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
 
@@ -361,7 +361,7 @@ class Transformer:
 					embedding, 
 					units=4*self.embedding_size, #bert paper 
 					activation=activation # relu
-				) # [N, self.decoder_input_length, units]
+				) # [N, self.decoder_input_length, 4*self.embedding_size]
 			dense = tf.layers.dense(
 					inner_layer, 
 					units=units, 
