@@ -59,6 +59,7 @@ class Transformer:
 					encoder_input_not_pad, 
 					axis=-1
 				) # [N, encoder_input_length, 1]
+			'''
 			encoder_multihead_attention_mask = tf.matmul(
 					self.encoder_input_mask,
 					tf.transpose(self.encoder_input_mask, [0, 2, 1])
@@ -67,7 +68,7 @@ class Transformer:
 					encoder_multihead_attention_mask, 
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
-
+			'''
 			self.decoder_mask = tf.sequence_mask(
 					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
 					maxlen=self.decoder_input_length,#.eval(session=sess),
@@ -87,7 +88,8 @@ class Transformer:
 		with tf.name_scope('train_decoder'):
 			decoder_input_embedding = self.embedding_and_PE(self.decoder_input, self.decoder_input_length) # decoder_input은 go 붙어있어야함.
 			self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
-					
+			
+			'''
 			first_eos_of_decoder_pred = tf.argmax(
 					tf.cast(tf.equal(self.decoder_pred, self.eos_idx), tf.int32),
 					axis = -1
@@ -99,6 +101,7 @@ class Transformer:
 				)
 			self.decoder_pred_except_eos = self.decoder_pred * eos_mask_of_decoder_pred
 			self.decoder_pred_except_eos += (eos_mask_of_decoder_pred - 1) * -self.pad_idx # the value of the masked position is pad_value
+			'''
 
 		
 		with tf.name_scope('infer_decoder'):
@@ -106,6 +109,7 @@ class Transformer:
 			# for beam search
 			self.top_k_prob, self.top_k_indices = self.beam_search_graph(self.infer_embedding, self.time_step, self.beam_width)
 
+			'''
 			first_eos_index = tf.argmax(
 					tf.cast(tf.equal(self.feed_for_except_eos, self.eos_idx), tf.int32),
 					axis = -1
@@ -117,21 +121,29 @@ class Transformer:
 				)
 			self.except_eos = self.feed_for_except_eos * eos_mask_of_feed_for_except_eos
 			self.except_eos += (eos_mask_of_feed_for_except_eos - 1) * -self.pad_idx # the value of the masked position is pad_value
-
+			'''
 
 		with tf.name_scope('train_cost'): 
 			# make smoothing target one hot vector
-			target_one_hot = tf.one_hot(
+			'''
+			self.target_one_hot = tf.one_hot(
 					self.target, 
 					depth=self.voca_size,
 					on_value = 1., # tf.float32
 					off_value = 0., # tf.float32
 				) # [N, self.target_length, self.voca_size]
-			self.smoothing_target_one_hot = target_one_hot * (1-self.label_smoothing) + (self.label_smoothing / self.voca_size)
-			
+			self.target_one_hot = self.target_one_hot * (1-self.label_smoothing) + (self.label_smoothing / self.voca_size)
+			'''
+			self.target_one_hot = tf.one_hot(
+					self.target, 
+					depth=self.voca_size,
+					on_value = (1.0-self.label_smoothing) + (self.label_smoothing / self.voca_size), # tf.float32
+					off_value = (self.label_smoothing / self.voca_size), # tf.float32
+					dtype= tf.float32
+				) # [N, self.target_length, self.voca_size]
 			# calc train_cost
 			self.train_cost = tf.nn.softmax_cross_entropy_with_logits(
-					labels = self.smoothing_target_one_hot, 
+					labels = self.target_one_hot, 
 					logits = self.decoder_embedding
 				) # [N, self.target_length]
 			self.train_cost *= self.target_pad_mask # except pad
@@ -303,7 +315,7 @@ class Transformer:
 			# masking
 			if mask is not None:
 				score = score * mask # zero mask
-				score = score + ((mask-1) * 1e+10) # -inf mask
+				score = score + ((mask-1) * 1e+7) # -inf mask
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹

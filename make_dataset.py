@@ -204,7 +204,8 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 	print('\n\n')
 
 # (source, target)
-bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
+bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
+#bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 bpe2idx_path = './npy/bpe2idx.npy'
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 

@@ -10,8 +10,10 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-#bucket = [(50,80),(70,100),(100, 130), (140, 170), (180, 210)] # for test
-bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
+#bucket = [(70,100),(100, 130), (140, 170), (180, 210)] # for test
+#bucket = [(50,80)] # for test
+bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
+#bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
 valid_source_path = './bpe_dataset/valid_set/source_'
@@ -73,6 +75,8 @@ def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
 				print(sentence.shape, target.shape, '\n')
 			else:
 				print(sentence.shape, len(target), '\n')
+		else:
+			print('# data: 0')
 
 	print('\n\n')
 	return dictionary
@@ -95,8 +99,8 @@ def train(model, data, epoch):
 	total_iter = data.total_iter
 
 	for i in tqdm(range(total_iter), ncols=50):
-		#step_num = ((epoch-1)*total_iter)+(i+1)
-		step_num = ( ( ((epoch-1)*total_iter)+ i ) // 8 ) + 1
+		step_num = ((epoch-1)*total_iter)+(i+1)
+		#step_num = ( ( ((epoch-1)*total_iter)+ i ) // 8 ) + 1
 		lr = get_lr(embedding_size=embedding_size, step_num=step_num) # epoch: [1, @], i:[0, total_iter)
 
 		encoder_input, temp, zz = data.get_batch()
@@ -113,9 +117,9 @@ def train(model, data, epoch):
 			)
 		loss += train_loss
 		if (i+1) % 5000 == 0:
-			print(i+1,loss/(i+1))
+			print(i+1,loss/(i+1), 'lr:', lr)
 
-	print('current step_num:', step_num)
+	print('current step_num:', step_num, 'lr:', lr)
 	return loss/total_iter
 
 
