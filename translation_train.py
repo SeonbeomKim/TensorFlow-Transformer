@@ -10,10 +10,7 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-#bucket = [(70,100),(100, 130), (140, 170), (180, 210)] # for test
-#bucket = [(50,80)] # for test
 bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
-#bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
 valid_source_path = './bpe_dataset/valid_set/source_'
@@ -92,18 +89,19 @@ def get_lr(embedding_size, step_num):
 	return lr
 
 
+
 def train(model, data, epoch):
 	loss = 0
 
-	data.shuffle()
-	total_iter = data.total_iter
+	dataset = data.get_dataset(bucket_shuffle=True, dataset_shuffle=True)
+	total_iter = len(dataset)
 
 	for i in tqdm(range(total_iter), ncols=50):
 		step_num = ((epoch-1)*total_iter)+(i+1)
 		#step_num = ( ( ((epoch-1)*total_iter)+ i ) // 8 ) + 1
 		lr = get_lr(embedding_size=embedding_size, step_num=step_num) # epoch: [1, @], i:[0, total_iter)
 
-		encoder_input, temp, zz = data.get_batch()
+		encoder_input, temp = dataset[i]
 		decoder_input = temp[:, :-1] 
 		target = temp[:, 1:] # except '</g>'		
 		train_loss, _ = sess.run([model.train_cost, model.minimize], 
@@ -126,9 +124,13 @@ def train(model, data, epoch):
 def infer(model, data):
 	pred_list = []
 	target_list = []
-	for i in tqdm(range(data.total_iter), ncols=50):
-		encoder_input, target, bucket_size = data.get_batch()
-		target_length = bucket_size[1]
+
+	dataset = data.get_dataset(bucket_shuffle=False, dataset_shuffle=False)
+	total_iter = len(dataset)
+
+	for i in tqdm(range(total_iter), ncols=50):
+		encoder_input, target = dataset[i]
+		target_length = encoder_input.shape[1] + 30
 
 		pred = infer_helper.decode(encoder_input, target_length) # [N, target_length]
 		del encoder_input
@@ -172,14 +174,19 @@ def run(model, trainset, validset, testset, restore=0):
 		os.makedirs(saver_path)
 	
 	for epoch in range(restore+1, 20000+1):
-		#train validation test
+		#train 
 		train_loss = train(model, trainset, epoch)
+		
+		#save
 		model.saver.save(sess, saver_path+str(epoch)+".ckpt")
+		
+		#validation 
 		valid_bleu = infer(model, validset)
+		
+		#test
 		test_bleu = infer(model, testset)
 		print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
 		
-		#save
 		
 		#tensorboard
 		summary = sess.run(merged, {
@@ -193,32 +200,6 @@ def run(model, trainset, validset, testset, restore=0):
 
 
 
-		'''
-		summary = sess.run(merged_train_valid, {
-					train_loss_tensorboard:train_loss, 
-					valid_bleu_tensorboard:valid_bleu,
-				}
-			)		
-		writer.add_summary(summary, epoch)
-		
-		if epoch % save_epoch == 0:
-			test_bleu = infer(model, testset)
-			# tensorboard
-			summary = sess.run(merged_test, {
-						test_bleu_tensorboard:test_bleu, 
-					}
-				)
-			writer.add_summary(summary, epoch)
-			model.saver.save(sess, saver_path+str(epoch)+".ckpt")
-
-			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
-
-		else:
-			print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, '\n')
-		
-		'''
-		
-
 
 
 print('Data read') # key: bucket_size(tuple) , value: [source, target]
@@ -227,13 +208,14 @@ valid_dict = read_data_set(valid_source_path, valid_target_path, bucket, 'txt')
 test_dict = read_data_set(test_source_path, test_target_path, bucket, 'txt')
 
 train_batch_token = 12000
-train_set = bucket_data_helper.bucket_data(train_dict, iter=True, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
-valid_set = bucket_data_helper.bucket_data(valid_dict, iter=True, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, iter=True, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
+valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+del train_dict, valid_dict, test_dict
+
 print('train_batch_token:', train_batch_token)
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 idx2bpe = load_data(idx2bpe_path, mode='dictionary')
-
 
 
 print("Model read")
@@ -261,7 +243,4 @@ utils = inference_helper.utils()
 
 print('run, step_num applied')
 run(model, train_set, valid_set, test_set)
-#print(sess.run(model.embedding_table))
-
-#testcode()
 

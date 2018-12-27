@@ -393,9 +393,12 @@ class Transformer:
 	
 	def positional_encoding(self):
 		PE = np.zeros([self.PE_sequence_length, self.embedding_size])
-		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
-			for i in range(self.embedding_size//2): 
-				PE[pos, 2*i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
-				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
 		
+		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
+			for i in range(self.embedding_size):
+				if i%2 == 0:
+					PE[pos, i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
+				else:
+					PE[pos, i] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
+
 		return PE #[self.PE_sequence_length, self.embedding_siz]
