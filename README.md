@@ -17,12 +17,15 @@ Attention Is All You Need
       * test_set: dev/newstest 
        
    * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
-      * MakeFile: 
-         * bpe_applied_data
-         * bpe2idx.npy 
-         * idx2bpe.npy 
-         * cache.npy
-         * merge_info.npy
+      * MakeFile:
+         * bpe_dataset/
+            * bpe_applied_data
+         * npy/
+            * bpe2idx.npy
+            * idx2bpe.npy
+            * cache.npy
+            * merge_info.npy
+            
 
 ## Code
    * Inference_utils.py
@@ -40,14 +43,18 @@ Attention Is All You Need
       * generate concatenated(source||target) and bucketed data (train, valid dataset)
       * need MakeFile of [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) 
       * MakeFile: 
-         * bpe_dataset/source_idx_wmt17_en.csv
-         * bpe_dataset/target_idx_wmt17_de.csv
-         * bpe_dataset/source_idx_newstest2014_en.csv
-         * bpe_dataset/source_idx_newstest2015_en.csv
-         * bpe_dataset/source_idx_newstest2016_en.csv
-         * bpe_dataset/train_set/bucket_data(source, target).csv
-         * bpe_dataset/valid_set/bucket_data(source, target).csv
-         * bpe_dataset/test_set/bucket_data(source, target).csv
+         * bpe_dataset/
+            * source_idx_wmt17_en.csv (train)
+            * target_idx_wmt17_de.csv (train)
+            * source_idx_newstest2014_en.csv (valid)
+            * source_idx_newstest2015_en.csv (test)
+            * source_idx_newstest2016_en.csv (test)
+            * train_set/
+               * bucket_data(source, target).csv  
+            * valid_set/  
+               * bucket_data(source, target).csv  
+            * test_set/  
+               * bucket_data(source, target).csv  
          
    * translation_train.py
      * WMT17 en-de train, validation, test
