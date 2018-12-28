@@ -13,7 +13,7 @@ Attention Is All You Need
    * Preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/  
       * Source: en
       * Target: de
-      * train_set: corpus.tc (I used only 500,000 line)
+      * train_set: corpus.tc
       * test_set: dev/newstest 
        
    * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
@@ -23,15 +23,12 @@ Attention Is All You Need
          * idx2bpe.npy 
          * cache.npy
          * merge_info.npy
-         * word_frequency_dictionary.npy 
 
 ## Code
-   * Decode_helper.py
-      * greedy decoder
-      * beam-search decoder
-  
    * Inference_utils.py
-      * inference, cost, accuracy, bleu(추가 예정)
+      * greedy
+      * beam-search
+      * bleu (nltk)
          
    * Transformer.py
       * Transformer implement
@@ -39,22 +36,26 @@ Attention Is All You Need
    * bucket_data_helper.py
       * bucket으로 구성된 데이터를 쉽게 가져오도록 하는 class
       
-   * make_train_valid_set.py
+   * make_dataset.py
       * generate concatenated(source||target) and bucketed data (train, valid dataset)
       * need MakeFile of [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) 
       * MakeFile: 
-         * train_bucket_concat_dataset.npy: training data
-         * valid_bucket_concat_dataset.npy: validation data 
-         * bucket_concat_dataset.npy: train_bucket_concat_dataset.npy + valid_bucket_concat_dataset.npy
-         * bpe2idx_(en,de).csv: bpe_applied_data to idx
+         * bpe_dataset/source_idx_wmt17_en.csv
+         * bpe_dataset/target_idx_wmt17_de.csv
+         * bpe_dataset/source_idx_newstest2014_en.csv
+         * bpe_dataset/source_idx_newstest2015_en.csv
+         * bpe_dataset/source_idx_newstest2016_en.csv
+         * bpe_dataset/train_set/bucket_data(source, target).csv
+         * bpe_dataset/valid_set/bucket_data(source, target).csv
+         * bpe_dataset/test_set/bucket_data(source, target).csv
          
-   * translation_train.py (구현중)
-     * WMT17 en-de train, validation
+   * translation_train.py
+     * WMT17 en-de train, validation, test
 
 ## Training
    1. [WMT17 Dataset Download](http://data.statmt.org/wmt17/translation-task/preprocessed/)  
    2. [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) apply
-   3. make_train_valid_set.py
+   3. make_dataset.py
    4. translation_train.py
 
 ## Reference
