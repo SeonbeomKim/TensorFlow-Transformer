@@ -34,8 +34,8 @@ def bpe2idx_out_csv(data_path, out_path, bpe2idx, read_line=None, info='source')
 				else:
 					row_idx.append(bpe2idx['UNK']) ## 0
 			
-			if info == 'target':
-				row_idx.append(bpe2idx['</e>']) ## eos:2
+			#if info == 'target':
+			row_idx.append(bpe2idx['</e>']) ## eos:2
 
 			wr.writerow(row_idx)
 
