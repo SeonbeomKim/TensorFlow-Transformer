@@ -52,9 +52,9 @@ Attention Is All You Need
             * train_set/
                * bucket_data(source, target).csv  
             * valid_set/  
-               * bucket_data(source, target).csv  
+               * bucket_data(source).csv ,  bucket_data(target).txt
             * test_set/  
-               * bucket_data(source, target).csv  
+               * bucket_data(source).csv ,  bucket_data(target).txt
          
    * translation_train.py
      * WMT17 en-de train, validation, test
