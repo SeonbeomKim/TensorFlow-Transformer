@@ -10,7 +10,12 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
+#bucket  (source, target)
+train_bucket = [(i*5, i*5 + j*5) for i in range(1, 41) for j in range(7)]# [(5, 5), (5, 10), .., (5, 35), ... , (200, 200), .., (200, 230)]
+infer_bucket = [(i*5, i*5+50) for i in range(1, 41)] # [(5, 55), (10, 60), ..., (200, 250)]
+
+
+#bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
 valid_source_path = './bpe_dataset/valid_set/source_'
@@ -203,9 +208,9 @@ def run(model, trainset, validset, testset, restore=0):
 
 
 print('Data read') # key: bucket_size(tuple) , value: [source, target]
-train_dict = read_data_set(train_source_path, train_target_path, bucket)
-valid_dict = read_data_set(valid_source_path, valid_target_path, bucket, 'txt')
-test_dict = read_data_set(test_source_path, test_target_path, bucket, 'txt')
+train_dict = read_data_set(train_source_path, train_target_path, train_bucket)
+valid_dict = read_data_set(valid_source_path, valid_target_path, infer_bucket, 'txt')
+test_dict = read_data_set(test_source_path, test_target_path, infer_bucket, 'txt')
 
 train_batch_token = 12000
 train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
@@ -242,5 +247,5 @@ infer_helper = inference_helper.greedy(sess, model, bpe2idx['</g>'])
 utils = inference_helper.utils()
 
 print('run, step_num applied')
-run(model, train_set, valid_set, test_set)
+run(model, train_set, valid_set, test_set, 1)
 

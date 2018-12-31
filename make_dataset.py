@@ -67,7 +67,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 
 		for i, sentence in enumerate(zip(source_wr, target_wr)):
 			if (i+1) % 1000000 == 0:
-				print('line:', i+1)
+				print('source_target_bucketing_and_concat_out_csv line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
 			target_sentence = np.array(sentence[1], dtype=np.int32)
@@ -122,7 +122,7 @@ def source_bucketing_and_concat_out_csv(source_path, target_path, out_path, buck
 
 		for i, sentence in enumerate(zip(source_wr, target)):
 			if (i+1) % 1000000 == 0:
-				print('line:', i+1)
+				print('source_bucketing_and_concat_out_csv line:', i+1)
 
 			source_sentence = np.array(sentence[0], dtype=np.int32)
 			target_sentence = sentence[1]
@@ -204,31 +204,38 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 	print('\n\n')
 
 # (source, target)
-bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
+#bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
+
+#bucket  (source, target)
+train_bucket = [(i*5, i*5 + j*5) for i in range(1, 41) for j in range(7)]# [(5, 5), (5, 10), .., (5, 35), ... , (200, 200), .., (200, 230)]
+infer_bucket = [(i*5, i*5+50) for i in range(1, 41)] # [(5, 55), (10, 60), ..., (200, 250)]
+
+
 #bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 bpe2idx_path = './npy/bpe2idx.npy'
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
+
 
 # make trainset
 source_target_path = ['./bpe_dataset/bpe_wmt17.en', './bpe_dataset/bpe_wmt17.de']
 source_target_out_path = ['./bpe_dataset/source_idx_wmt17_en.csv', './bpe_dataset/target_idx_wmt17_de.csv']
 dataset_out_path = './bpe_dataset/train_set/'
-make_train_dataset_out_csv(source_target_path, source_target_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
+make_train_dataset_out_csv(source_target_path, source_target_out_path, dataset_out_path, train_bucket, bpe2idx, read_line=None)
 
 # make validset
 source_target_path = ['./bpe_dataset/bpe_newstest2014.en', './dataset/dev.tar/newstest2014.tc.de']
 source_idx_out_path = './bpe_dataset/source_idx_newstest2014_en.csv'
 dataset_out_path = './bpe_dataset/valid_set/'
-make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, infer_bucket, bpe2idx, read_line=None)
 
 # make testset
 source_target_path = ['./bpe_dataset/bpe_newstest2015.en', './dataset/dev.tar/newstest2015.tc.de']
 source_idx_out_path = './bpe_dataset/source_idx_newstest2015_en.csv'
 dataset_out_path = './bpe_dataset/test_set/'
-make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None)
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, infer_bucket, bpe2idx, read_line=None)
 
 # make testset
 source_target_path = ['./bpe_dataset/bpe_newstest2016.en', './dataset/dev.tar/newstest2016.tc.de']
 source_idx_out_path = './bpe_dataset/source_idx_newstest2016_en.csv'
 dataset_out_path = './bpe_dataset/test_set/'
-make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, bucket, bpe2idx, read_line=None, file_mode='a')
+make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dataset_out_path, infer_bucket, bpe2idx, read_line=None, file_mode='a')

@@ -59,7 +59,7 @@ class Transformer:
 					encoder_input_not_pad, 
 					axis=-1
 				) # [N, encoder_input_length, 1]
-			'''
+			#####
 			encoder_multihead_attention_mask = tf.matmul(
 					self.encoder_input_mask,
 					tf.transpose(self.encoder_input_mask, [0, 2, 1])
@@ -68,7 +68,7 @@ class Transformer:
 					encoder_multihead_attention_mask, 
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
-			'''
+			####
 			self.decoder_mask = tf.sequence_mask(
 					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
 					maxlen=self.decoder_input_length,#.eval(session=sess),
@@ -87,7 +87,8 @@ class Transformer:
 		
 		with tf.name_scope('train_decoder'):
 			decoder_input_embedding = self.embedding_and_PE(self.decoder_input, self.decoder_input_length) # decoder_input은 go 붙어있어야함.
-			self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
+			self.decoder_embedding = self.decoder(decoder_input_embedding, self.encoder_embedding)
+			#self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
 			
 			'''
 			first_eos_of_decoder_pred = tf.argmax(
@@ -261,6 +262,7 @@ class Transformer:
 				) # [N, self.decoder_input_length, self.embedding_size]
 			decoder_input_embedding = Dense_add_norm
 
+
 		with tf.variable_scope("decoder_linear", reuse=tf.AUTO_REUSE):
 			decoder_embedding = tf.layers.dense(
 					Dense_add_norm, 
@@ -268,13 +270,14 @@ class Transformer:
 					activation=None
 				) # [N, self.decoder_input_length, self.voca_size]
 
+		'''
 		decoder_pred = tf.argmax(
 				decoder_embedding, 
 				axis=-1, 
 				output_type=tf.int32
 			) # [N, self,decoder_input_length]
-
-		return decoder_embedding, decoder_pred
+		'''
+		return decoder_embedding #, decoder_pred
 
 
 
@@ -319,11 +322,11 @@ class Transformer:
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹
-			'''
+			####
 			# encoder multi-head attention masking
 			if 'encoder' in name:
 				score = score * self.encoder_multihead_attention_mask # zero mask
-				score = score + ((self.encoder_multihead_attention_mask-1) * 1e+10) # -inf mask				
+				score = score + ((self.encoder_multihead_attention_mask-1) * 1e+7) # -inf mask				
 				# 1 1 0
 				# 1 1 0
 				# 0 0 0 형태로 마스킹
@@ -336,11 +339,11 @@ class Transformer:
 					) # [N, key_value_sequence_length, self.embedding_size]
 				ED_attention_decoder_mask = tf.transpose(ED_attention_decoder_mask, [0,2,1])[:, 0:1, :] # [N, 1, key_value_sequence_length]
 				ED_attention_decoder_mask = tf.tile(ED_attention_decoder_mask, [self.multihead_num, 1, 1]) # [self.multihead_num*N, 1, key_value_sequence_length]
-				score += ((ED_attention_decoder_mask-1) * 1e+10)	
+				score += ((ED_attention_decoder_mask-1) * 1e+7)	
 				# 1 1 0
 				# 1 1 0 
 				# 1 1 0 형태로 마스킹함.
-			'''
+			####
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
 
@@ -390,7 +393,17 @@ class Transformer:
 		return dense 
 
 
-	
+	def positional_encoding(self):
+		PE = np.zeros([self.PE_sequence_length, self.embedding_size])
+		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
+			for i in range(self.embedding_size//2): 
+				PE[pos, 2*i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
+				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
+		
+		return PE #[self.PE_sequence_length, self.embedding_siz]
+
+
+	'''
 	def positional_encoding(self):
 		PE = np.zeros([self.PE_sequence_length, self.embedding_size])
 		
@@ -402,3 +415,4 @@ class Transformer:
 					PE[pos, i] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
 
 		return PE #[self.PE_sequence_length, self.embedding_siz]
+	'''
