@@ -59,7 +59,7 @@ class Transformer:
 					encoder_input_not_pad, 
 					axis=-1
 				) # [N, encoder_input_length, 1]
-			#####
+			'''
 			encoder_multihead_attention_mask = tf.matmul(
 					self.encoder_input_mask,
 					tf.transpose(self.encoder_input_mask, [0, 2, 1])
@@ -68,7 +68,7 @@ class Transformer:
 					encoder_multihead_attention_mask, 
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
-			####
+			'''
 			self.decoder_mask = tf.sequence_mask(
 					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
 					maxlen=self.decoder_input_length,#.eval(session=sess),
@@ -87,7 +87,7 @@ class Transformer:
 		
 		with tf.name_scope('train_decoder'):
 			decoder_input_embedding = self.embedding_and_PE(self.decoder_input, self.decoder_input_length) # decoder_input은 go 붙어있어야함.
-			self.decoder_embedding = self.decoder(decoder_input_embedding, self.encoder_embedding)
+			self.decoder_embedding, _ = self.decoder(decoder_input_embedding, self.encoder_embedding)
 			#self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
 			
 			'''
@@ -270,14 +270,14 @@ class Transformer:
 					activation=None
 				) # [N, self.decoder_input_length, self.voca_size]
 
-		'''
+		
 		decoder_pred = tf.argmax(
 				decoder_embedding, 
 				axis=-1, 
 				output_type=tf.int32
 			) # [N, self,decoder_input_length]
-		'''
-		return decoder_embedding #, decoder_pred
+		
+		return decoder_embedding, decoder_pred
 
 
 
@@ -322,7 +322,7 @@ class Transformer:
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹
-			####
+			'''
 			# encoder multi-head attention masking
 			if 'encoder' in name:
 				score = score * self.encoder_multihead_attention_mask # zero mask
@@ -343,7 +343,7 @@ class Transformer:
 				# 1 1 0
 				# 1 1 0 
 				# 1 1 0 형태로 마스킹함.
-			####
+			'''
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
 
