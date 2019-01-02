@@ -8,12 +8,11 @@ from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings('ignore')
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 #bucket  (source, target)
-train_bucket = [(i*5, i*5 + j*5) for i in range(1, 41) for j in range(7)]# [(5, 5), (5, 10), .., (5, 35), ... , (200, 200), .., (200, 230)]
-infer_bucket = [(i*5, i*5+50) for i in range(1, 41)] # [(5, 55), (10, 60), ..., (200, 250)]
-
+train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
+infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
 
 #bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
@@ -35,7 +34,7 @@ def load_data(path, mode=None):
 		data = data.item()
 	print(path, len(data))
 	return data
-
+'''
 def _read_csv(path):
 	print('read csv data', path)
 	data = np.loadtxt(
@@ -51,6 +50,34 @@ def _read_txt(path):
 	data = []
 	with open(path, 'r', encoding='utf-8') as f:
 		for sentence in f:
+			# EOF check
+			if sentence == '\n' or sentence == ' ' or sentence == '':
+				break
+			if sentence[-1] == '\n':
+				sentence = sentence[:-1]
+			data.append(sentence.split())					
+		return data
+'''
+import csv
+def _read_csv(path):
+	print('read csv data', path)
+	data = []
+	with open(path, 'r', newline='') as f:
+		wr = csv.reader(f)
+		for line, sentence in enumerate(wr):
+			if line == 500:
+				break
+			data.append(np.array(sentence, dtype=np.int32))
+	return np.asarray(data, np.int32)
+
+
+def _read_txt(path):
+	print('read txt data', path)
+	data = []
+	with open(path, 'r', encoding='utf-8') as f:
+		for line, sentence in enumerate(f):
+			if line == 500:
+				break
 			# EOF check
 			if sentence == '\n' or sentence == ' ' or sentence == '':
 				break
@@ -103,11 +130,11 @@ def train(model, data, epoch):
 
 	for i in tqdm(range(total_iter), ncols=50):
 		step_num = ((epoch-1)*total_iter)+(i+1)
-		#step_num = ( ( ((epoch-1)*total_iter)+ i ) // 8 ) + 1
 		lr = get_lr(embedding_size=embedding_size, step_num=step_num) # epoch: [1, @], i:[0, total_iter)
 
 		encoder_input, temp = dataset[i]
 		decoder_input = temp[:, :-1] 
+		print(encoder_input.shape, decoder_input.shape, 4*np.multiply(*encoder_input.shape)*512/1000000000,"GB", 4*np.multiply(*decoder_input.shape)*40297/1000000000,'GB')
 		target = temp[:, 1:] # except '</g>'		
 		train_loss, _ = sess.run([model.train_cost, model.minimize], 
 				{
@@ -212,8 +239,9 @@ train_dict = read_data_set(train_source_path, train_target_path, train_bucket)
 valid_dict = read_data_set(valid_source_path, valid_target_path, infer_bucket, 'txt')
 test_dict = read_data_set(test_source_path, test_target_path, infer_bucket, 'txt')
 
-train_batch_token = 12000
+train_batch_token = 12500
 train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
+#train_dict, train_set=0,0
 valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
 test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
 del train_dict, valid_dict, test_dict
@@ -225,6 +253,10 @@ idx2bpe = load_data(idx2bpe_path, mode='dictionary')
 
 print("Model read")
 sess = tf.Session()
+#config = tf.ConfigProto()
+#config = tf.ConfigProto(allow_soft_placement=True)
+#config.gpu_options.allow_growth = True
+#sess = tf.Session(config=config)
 
 warmup_steps = 4000 #
 embedding_size = 512#256
@@ -247,5 +279,5 @@ infer_helper = inference_helper.greedy(sess, model, bpe2idx['</g>'])
 utils = inference_helper.utils()
 
 print('run, step_num applied')
-run(model, train_set, valid_set, test_set, 1)
+run(model, train_set, valid_set, test_set)
 

@@ -74,6 +74,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 			
 			for bucket_index, bucket_size in enumerate(bucket):
 				source_size, target_size = bucket_size
+				# 버켓에 없는것은 데이터는 제외.
 				if len(source_sentence) <= source_size and len(target_sentence) <= target_size: # (1,2) <= (10, 40)
 					source_sentence = np.pad(
 							source_sentence, 
@@ -83,7 +84,7 @@ def source_target_bucketing_and_concat_out_csv(source_path, target_path, out_pat
 						)
 					target_sentence = np.pad(
 							target_sentence, 
-							(0, target_size-len(target_sentence)),
+							(0, target_size+1-len(target_sentence)), # [0:-1]: decoder_input, [1:]: decoder_target 이므로 +1 해줌.
 							'constant',
 							constant_values = pad_idx # bpe2idx['</p>'] # pad value
 						)
@@ -207,9 +208,10 @@ def make_valid_test_dataset_out_csv(source_target_path, source_idx_out_path, dat
 #bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
 
 #bucket  (source, target)
-train_bucket = [(i*5, i*5 + j*5) for i in range(1, 41) for j in range(7)]# [(5, 5), (5, 10), .., (5, 35), ... , (200, 200), .., (200, 230)]
-infer_bucket = [(i*5, i*5+50) for i in range(1, 41)] # [(5, 55), (10, 60), ..., (200, 250)]
-
+train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
+infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
+print('train_bucket\n', train_bucket,'\n')
+print('infer_bucket\n', infer_bucket,'\n')
 
 #bucket = [(10, 40), (30, 60), (50, 80), (70, 100), (100, 130), (140, 170), (180, 210)]
 bpe2idx_path = './npy/bpe2idx.npy'
