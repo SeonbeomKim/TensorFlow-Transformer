@@ -14,7 +14,6 @@ warnings.filterwarnings('ignore')
 train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
 infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
 
-#bucket = [(i*5, i*5+30) for i in range(1, 37)] # [(5, 35), (10, 40), ..., (180, 210)]
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
 valid_source_path = './bpe_dataset/valid_set/source_'
@@ -34,7 +33,7 @@ def load_data(path, mode=None):
 		data = data.item()
 	print(path, len(data))
 	return data
-'''
+
 def _read_csv(path):
 	print('read csv data', path)
 	data = np.loadtxt(
@@ -57,6 +56,7 @@ def _read_txt(path):
 				sentence = sentence[:-1]
 			data.append(sentence.split())					
 		return data
+
 '''
 import csv
 def _read_csv(path):
@@ -65,7 +65,7 @@ def _read_csv(path):
 	with open(path, 'r', newline='') as f:
 		wr = csv.reader(f)
 		for line, sentence in enumerate(wr):
-			if line == 500:
+			if line == 1500:
 				break
 			data.append(np.array(sentence, dtype=np.int32))
 	return np.asarray(data, np.int32)
@@ -76,7 +76,7 @@ def _read_txt(path):
 	data = []
 	with open(path, 'r', encoding='utf-8') as f:
 		for line, sentence in enumerate(f):
-			if line == 500:
+			if line == 1500:
 				break
 			# EOF check
 			if sentence == '\n' or sentence == ' ' or sentence == '':
@@ -85,9 +85,11 @@ def _read_txt(path):
 				sentence = sentence[:-1]
 			data.append(sentence.split())					
 		return data
+'''
 
 def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
 	dictionary = {}
+	total_sentence = 0
 	for bucket_size in bucket:
 		sentence = _read_csv(sentence_path+str(bucket_size)+'.csv')
 		
@@ -97,9 +99,11 @@ def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
 			target = _read_txt(target_path+str(bucket_size)+'.txt')
 
 		# 개수가 0인 bucket은 버림.
-		if len(sentence) != 0:
+		sentence_num = len(sentence)
+		if sentence_num != 0:
+			total_sentence += sentence_num
+
 			dictionary[bucket_size] = [sentence, target]
-		
 			if target_type =='csv':
 				print(sentence.shape, target.shape, '\n')
 			else:
@@ -108,7 +112,7 @@ def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
 			print('# data: 0')
 
 	print('\n\n')
-	return dictionary
+	return dictionary, total_sentence
 		
 
 def get_lr(embedding_size, step_num):
@@ -134,7 +138,7 @@ def train(model, data, epoch):
 
 		encoder_input, temp = dataset[i]
 		decoder_input = temp[:, :-1] 
-		print(encoder_input.shape, decoder_input.shape, 4*np.multiply(*encoder_input.shape)*512/1000000000,"GB", 4*np.multiply(*decoder_input.shape)*40297/1000000000,'GB')
+		#print(encoder_input.shape, decoder_input.shape, 4*np.multiply(*encoder_input.shape)*512/1000000000,"GB", 4*np.multiply(*decoder_input.shape)*40297/1000000000,'GB')
 		target = temp[:, 1:] # except '</g>'		
 		train_loss, _ = sess.run([model.train_cost, model.minimize], 
 				{
@@ -185,7 +189,8 @@ def infer(model, data):
 def run(model, trainset, validset, testset, restore=0):
 	if restore != 0:
 		model.saver.restore(sess, saver_path+str(restore)+".ckpt")
-	
+		print('restore:', restore)
+
 	with tf.name_scope("tensorboard"):
 		train_loss_tensorboard = tf.placeholder(tf.float32, name='train_loss')
 		valid_bleu_tensorboard = tf.placeholder(tf.float32, name='valid_bleu')
@@ -235,20 +240,22 @@ def run(model, trainset, validset, testset, restore=0):
 
 
 print('Data read') # key: bucket_size(tuple) , value: [source, target]
-train_dict = read_data_set(train_source_path, train_target_path, train_bucket)
-valid_dict = read_data_set(valid_source_path, valid_target_path, infer_bucket, 'txt')
-test_dict = read_data_set(test_source_path, test_target_path, infer_bucket, 'txt')
+train_dict, train_sentence_num = read_data_set(train_source_path, train_target_path, train_bucket)
+valid_dict, valid_sentence_num = read_data_set(valid_source_path, valid_target_path, infer_bucket, 'txt')
+test_dict, test_sentence_num = read_data_set(test_source_path, test_target_path, infer_bucket, 'txt')
+print('train_sentence_num:', train_sentence_num)
+print('valid_sentence_num:', valid_sentence_num)
+print('test_sentence_num:', test_sentence_num, '\n')
 
-train_batch_token = 12500
+train_batch_token = 12000
 train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
-#train_dict, train_set=0,0
-valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
+test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
 del train_dict, valid_dict, test_dict
 
 print('train_batch_token:', train_batch_token)
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
-idx2bpe = load_data(idx2bpe_path, mode='dictionary')
+idx2bpe = load_data(idx2bpe_path)
 
 
 print("Model read")

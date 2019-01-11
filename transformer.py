@@ -168,13 +168,13 @@ class Transformer:
 
 	def encoder(self, encoder_input_embedding):
 		# encoder_input_embedding masking(pad position)
-		#encoder_input_embedding *= self.encoder_input_mask
+		encoder_input_embedding *= self.encoder_input_mask
 		
 		# stack encoder layer
 		for i in range(self.encoder_decoder_stack): #6
 			# Multi-Head Attention
 			Multihead_add_norm = self.multi_head_attention_add_norm(
-					query=encoder_input_embedding * self.encoder_input_mask,
+					query=encoder_input_embedding,
 					key_value=encoder_input_embedding,
 					activation=None,
 					name='encoder'+str(i)
@@ -188,6 +188,9 @@ class Transformer:
 					name='encoder_dense'+str(i)
 				) # [N, self.encoder_input_length, self.embedding_size]
 			
+			# encoder_input_embedding masking(pad position)
+			encoder_input_embedding *= self.encoder_input_mask
+
 		return encoder_input_embedding # [N, self.encoder_input_length, self.embedding_size]
 
 
