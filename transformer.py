@@ -57,8 +57,8 @@ class Transformer:
 			self.encoder_input_mask = tf.expand_dims(
 					tf.cast(tf.not_equal(self.encoder_input, self.pad_idx),	dtype=tf.float32), # [N, encoder_input_length]
 					axis=-1
-				) # [N, encoder_input_length, 1]
-			'''
+				) # [N, encoder_input_length, 1] 
+			
 			encoder_multihead_attention_mask = tf.matmul(
 					self.encoder_input_mask,
 					tf.transpose(self.encoder_input_mask, [0, 2, 1])
@@ -67,7 +67,14 @@ class Transformer:
 					encoder_multihead_attention_mask, 
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
-			'''
+			
+			ED_attention_decoder_mask = tf.transpose(self.encoder_input_mask, [0, 2, 1]) # [N, 1, encoder_input_length]
+			self.ED_attention_decoder_mask = tf.tile(
+					ED_attention_decoder_mask,
+					[self.multihead_num, 1, 1]
+				) # [self.multihead_num*N, 1, encoder_input_length] # 1 부분은 embedding_size만큼 broadcasting 됨.
+
+
 			self.decoder_mask = tf.sequence_mask(
 					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
 					maxlen=self.decoder_input_length,#.eval(session=sess),
@@ -299,28 +306,27 @@ class Transformer:
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹
-			'''
+
 			# encoder multi-head attention masking
-			if 'encoder' in name:
+			if 'encoder' in name: # self.encoder_multihead_attention_mask: [self.multihead_num*N, encoder_input_length, encoder_input_length]
 				score = score * self.encoder_multihead_attention_mask # zero mask
 				score = score + ((self.encoder_multihead_attention_mask-1) * 1e+7) # -inf mask				
 				# 1 1 0
 				# 1 1 0
 				# 0 0 0 형태로 마스킹
 
+				#padding이 된 row는 마스킹을 했어도 softmax하면 값이 살아나지만, encoder함수의 masking으로 제거됨.
+				#또한 살아난 값은 attention, concat, lenear, dropout, add, layernorm등을 거쳐도 다른 부분에 영향을 안주니까
+				#지금 당장 마스킹 안하고 encoder 함수에서 마스킹 해도 됨. 
+
 			# encoder-decoder attention masking of decoder
-			if 'ED_attention_decoder' in name:
-				ED_attention_decoder_mask = tf.cast(
-						tf.not_equal(key_value, 0),
-						dtype=tf.float32
-					) # [N, key_value_sequence_length, self.embedding_size]
-				ED_attention_decoder_mask = tf.transpose(ED_attention_decoder_mask, [0,2,1])[:, 0:1, :] # [N, 1, key_value_sequence_length]
-				ED_attention_decoder_mask = tf.tile(ED_attention_decoder_mask, [self.multihead_num, 1, 1]) # [self.multihead_num*N, 1, key_value_sequence_length]
-				score += ((ED_attention_decoder_mask-1) * 1e+7)	
+			if 'ED_attention_decoder' in name:  # self.ED_attention_decoder_mask: [self.multihead_num*N, 1, encoder_input_length] # 1 부분은 embedding_size만큼 broadcasting 됨.
+				score = score * self.ED_attention_decoder_mask # zero mask  
+				score = score + ((self.ED_attention_decoder_mask-1) * 1e+7) # -inf mask				
 				# 1 1 0
 				# 1 1 0 
 				# 1 1 0 형태로 마스킹함.
-			'''
+			
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
 
