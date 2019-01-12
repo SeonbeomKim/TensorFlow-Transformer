@@ -19,7 +19,7 @@ class greedy:
 		#decoder_embedding = []
 
 		# 이렇게 안하면 decoder time step 계산할 때마다 encoder embedding 재계산해야해서 느림.
-		encoder_embedding = sess.run(model.encoder_embedding,  
+		encoder_embedding = sess.run(model.encoder_embedding,
 				{
 					model.encoder_input:encoder_input, 
 					model.keep_prob:1
@@ -62,7 +62,7 @@ class beam:
 		input_token = np.zeros([N*beam_width, target_length+1], np.int32) # go || target_length
 		input_token[:, 0] = go_idx
 		
-		encoder_embedding = sess.run(tf.contrib.seq2seq.tile_batch(model.encoder_embedding, beam_width),  
+		encoder_embedding = sess.run(tf.contrib.seq2seq.tile_batch(model.encoder_embedding, beam_width),
 				{
 					model.encoder_input:encoder_input, 
 					model.keep_prob:1, 
@@ -150,8 +150,8 @@ class utils:
 		pass
 
 	def bleu(self, target, pred):
-		#smoothing = nltk.translate.bleu_score.SmoothingFunction()
-		score = nltk.translate.bleu_score.corpus_bleu(target, pred)
+		smoothing = nltk.translate.bleu_score.SmoothingFunction()
+		score = nltk.translate.bleu_score.corpus_bleu(target, pred, smoothing_function=smoothing.method0)
 		#score = nltk.translate.bleu_score.corpus_bleu(target, pred, smoothing_function=smoothing.method4)
 		return score
 
