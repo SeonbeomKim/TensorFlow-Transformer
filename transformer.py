@@ -183,6 +183,7 @@ class Transformer:
 			Multihead_add_norm = self.multi_head_attention_add_norm(
 					query=encoder_input_embedding,
 					key_value=encoder_input_embedding,
+					mask=self.encoder_multihead_attention_mask,
 					activation=None,
 					name='encoder'+str(i)
 				) # [N, self.encoder_input_length, self.embedding_size]
@@ -221,6 +222,7 @@ class Transformer:
 			ED_Multihead_add_norm = self.multi_head_attention_add_norm(
 					query=Masked_Multihead_add_norm, 
 					key_value=encoder_embedding,
+					mask=self.ED_attention_decoder_mask,
 					activation=None,
 					name='ED_attention_decoder'+str(i)
 				) 
@@ -303,29 +305,20 @@ class Transformer:
 			if mask is not None:
 				score = score * mask # zero mask
 				score = score + ((mask-1) * 1e+7) # -inf mask
+				# decoder mask:
 				# 1 0 0
 				# 1 1 0
 				# 1 1 1 형태로 마스킹
 
-			# encoder multi-head attention masking
-			if 'encoder' in name: # self.encoder_multihead_attention_mask: [self.multihead_num*N, encoder_input_length, encoder_input_length]
-				score = score * self.encoder_multihead_attention_mask # zero mask
-				score = score + ((self.encoder_multihead_attention_mask-1) * 1e+7) # -inf mask				
+				# encoder_multihead_mask
 				# 1 1 0
 				# 1 1 0
 				# 0 0 0 형태로 마스킹
 
-				#padding이 된 row는 마스킹을 했어도 softmax하면 값이 살아나지만, encoder함수의 masking으로 제거됨.
-				#또한 살아난 값은 attention, concat, lenear, dropout, add, layernorm등을 거쳐도 다른 부분에 영향을 안주니까
-				#지금 당장 마스킹 안하고 encoder 함수에서 마스킹 해도 됨. 
-
-			# encoder-decoder attention masking of decoder
-			if 'ED_attention_decoder' in name:  # self.ED_attention_decoder_mask: [self.multihead_num*N, 1, encoder_input_length] # 1 부분은 embedding_size만큼 broadcasting 됨.
-				score = score * self.ED_attention_decoder_mask # zero mask  
-				score = score + ((self.ED_attention_decoder_mask-1) * 1e+7) # -inf mask				
+				# ED_attention_mask
 				# 1 1 0
 				# 1 1 0 
-				# 1 1 0 형태로 마스킹함.
+				# 1 1 0 형태로 마스킹
 			
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
