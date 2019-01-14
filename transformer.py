@@ -37,11 +37,11 @@ class Transformer:
 			
 			self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 				# dropout (each sublayers before add and norm)  and  (sums of the embeddings and the PE)
-			
+			'''
 			self.feed_encoder_embedding = tf.placeholder(tf.float32, [None, None, self.embedding_size], name='feed_encoder_embedding') # for inference
 			self.beam_width = tf.placeholder(tf.int32, name='beam_width')
 			self.time_step = tf.placeholder(tf.int32, name='time_step')
-			
+			'''
 
 		# random_uniform으로 바꾸고 cpu로 할당하도록 수정하자.
 
@@ -93,14 +93,13 @@ class Transformer:
 		
 		with tf.name_scope('train_decoder'):
 			decoder_input_embedding = self.embedding_and_PE(self.decoder_input, self.decoder_input_length) # decoder_input은 go 붙어있어야함.
-			self.decoder_embedding, _ = self.decoder(decoder_input_embedding, self.encoder_embedding)
-			#self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
+			self.decoder_embedding, self.decoder_pred = self.decoder(decoder_input_embedding, self.encoder_embedding)
 			
 		
-		with tf.name_scope('infer_decoder'):
-			self.infer_embedding, self.infer_pred = self.decoder(decoder_input_embedding, self.feed_encoder_embedding)
+		#with tf.name_scope('infer_decoder'):
+			#self.infer_embedding, self.infer_pred = self.decoder(decoder_input_embedding, self.feed_encoder_embedding)
 			# for beam search
-			self.top_k_prob, self.top_k_indices = self.beam_search_graph(self.infer_embedding, self.time_step, self.beam_width)
+			#self.top_k_prob, self.top_k_indices = self.beam_search_graph(self.infer_embedding, self.time_step, self.beam_width)
 		
 
 		with tf.name_scope('train_cost'): 
@@ -128,13 +127,12 @@ class Transformer:
 
 
 		with tf.name_scope("saver"):
-			#self.saver = tf.train.Saver(max_to_keep=10000)
-			self.saver = tf.train.Saver()
+			self.saver = tf.train.Saver(max_to_keep=10000)
 		
 		sess.run(tf.global_variables_initializer())
 
 
-
+	'''
 	def beam_search_graph(self, infer_embedding, time_step, beam_width):
 		# infer_embeding: [N*beam_width, decoder_input_length, self.voca_size]
 		
@@ -152,7 +150,7 @@ class Transformer:
 		top_k_indices = tf.reshape(top_k_indices, [-1, 1]) # [N*beam_width*beam_width, 1]
 
 		return top_k_prob, top_k_indices#, softmax_infer_embedding
-
+	'''
 
 
 	def embedding_and_PE(self, data, data_length):
@@ -236,26 +234,27 @@ class Transformer:
 				) # [N, self.decoder_input_length, self.embedding_size]
 
 		'''
-		
-		decoder_embedding = tf.matmul(
-				Dense_add_norm, 
-				tf.expand_dims(tf.transpose(self.embedding_table,[1,0]), axis=0)
-			) # [N, self.decoder_input_length, self.voca_size]		
-		decoder_embedding = tf.nn.conv1d(
-				value=Dense_add_norm, 
-				filters=tf.expand_dims(tf.transpose(self.embedding_table,[1,0]), axis=0), 
-				stride=1,
-				padding='VALID',
-			) # [N, self.decoder_input_length, self.voca_size]
-		'''
-
-
 		with tf.variable_scope("decoder_linear", reuse=tf.AUTO_REUSE):
 			decoder_embedding = tf.layers.dense(
 					decoder_input_embedding,#Dense_add_norm, 
 					self.voca_size, 
 					activation=None,
 				) # [N, self.decoder_input_length, self.voca_size]
+		'''
+
+		# share weight, input embeddings, per-softmax layer
+		decoder_embedding = tf.reshape(
+				decoder_input_embedding, 
+				[-1, self.embedding_size]
+			) # [N*self.decoder_input_length, self.embedding_size]
+		decoder_embedding = tf.matmul(
+				decoder_embedding,
+				tf.transpose(self.embedding_table) # [self.embedding_size, self.voca_size]
+			) # [N*self.decoder_input_length, self.voca_size]
+		decoder_embedding = tf.reshape(
+				decoder_embedding,
+				[-1, self.decoder_input_length, self.voca_size]
+			)				
 
 		decoder_pred = tf.argmax(
 				decoder_embedding, 
@@ -304,7 +303,7 @@ class Transformer:
 			# masking
 			if mask is not None:
 				score = score * mask # zero mask
-				score = score + ((mask-1) * 1e+7) # -inf mask
+				score = score + ((mask-1) * 1e+9) # -inf mask
 				# decoder mask:
 				# 1 0 0
 				# 1 1 0
@@ -330,7 +329,8 @@ class Transformer:
 			Multihead = tf.layers.dense(
 					concat, 
 					units=self.embedding_size, 
-					activation=activation
+					activation=activation,
+					use_bias=False
 				) # [N, query_sequence_length, self.embedding_size]
 			# Drop Out
 			Multihead = tf.nn.dropout(Multihead, keep_prob=self.keep_prob)
@@ -385,13 +385,14 @@ class Transformer:
 	
 		return dense 
 
-
+	#https://github.com/tensorflow/models/blob/master/official/transformer/model/model_utils.py 
+	#구글 구현 코드랑은 다름.
 	def positional_encoding(self):
-		PE = np.zeros([self.PE_sequence_length, self.embedding_size])
+		PE = np.zeros([self.PE_sequence_length, self.embedding_size], dtype=np.float32)
 		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
 			for i in range(self.embedding_size//2): 
 				PE[pos, 2*i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
 				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
 		
 		return PE #[self.PE_sequence_length, self.embedding_siz]
-
+	

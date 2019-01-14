@@ -19,7 +19,7 @@ class greedy:
 		#decoder_embedding = []
 
 		# 이렇게 안하면 decoder time step 계산할 때마다 encoder embedding 재계산해야해서 느림.
-		encoder_embedding = sess.run(model.encoder_embedding,
+		encoder_embedding, encoder_input_mask = sess.run([model.encoder_embedding,  model.encoder_input_mask],
 				{
 					model.encoder_input:encoder_input, 
 					model.keep_prob:1
@@ -28,9 +28,10 @@ class greedy:
 		
 		for index in range(target_length):
 			#current_pred, current_embedding = sess.run([model.infer_pred, model.infer_embedding],
-			current_pred, _ = sess.run([model.infer_pred, model.infer_embedding],
+			current_pred = sess.run(model.decoder_pred,
 					{
-						model.feed_encoder_embedding:encoder_embedding,
+						model.encoder_input_mask:encoder_input_mask,
+						model.encoder_embedding:encoder_embedding,
 						model.decoder_input:input_token[:, :-1],
 						model.keep_prob:1
 					}
@@ -42,6 +43,7 @@ class greedy:
 		return input_token[:, 1:]#, np.concatenate(decoder_embedding, axis=1) #except 'go'
 
 
+'''
 class beam:
 	def __init__(self, sess, model, go_idx, beam_width=2):
 		self.sess = sess
@@ -62,7 +64,7 @@ class beam:
 		input_token = np.zeros([N*beam_width, target_length+1], np.int32) # go || target_length
 		input_token[:, 0] = go_idx
 		
-		encoder_embedding = sess.run(tf.contrib.seq2seq.tile_batch(model.encoder_embedding, beam_width),
+		encoder_embedding, encoder_input_mask = sess.run([tf.contrib.seq2seq.tile_batch(model.encoder_embedding, beam_width),  tf.contrib.seq2seq.tile_batch(model.encoder_input_mask, beam_width)],
 				{
 					model.encoder_input:encoder_input, 
 					model.keep_prob:1, 
@@ -73,6 +75,7 @@ class beam:
 		for index in range(target_length):
 			prob, indices = sess.run([model.top_k_prob, model.top_k_indices], 
 					{
+						model.encoder_input_mask:encoder_input_mask,
 						model.feed_encoder_embedding:encoder_embedding, 
 						model.decoder_input:input_token[:, :-1], 
 						model.keep_prob:1,
@@ -141,7 +144,7 @@ class beam:
 
 		# [N, target_length]
 		return indices_list[:, 0, :] # batch마다 가장 probability가 높은 결과 리턴.
-
+'''
 
 
 
