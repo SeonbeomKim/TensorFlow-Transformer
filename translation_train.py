@@ -8,11 +8,14 @@ from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings('ignore')
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 #bucket  (source, target)
 train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
 infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
+#train_bucket = [(i*5, i*5 + j*10) for i in range(3, 5) for j in range(2)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
+#infer_bucket = [(i*5, i*5+50) for i in range(1, 5)] # [(5, 55), (10, 60), ..., (150, 200)]
+
 
 train_source_path = './bpe_dataset/train_set/source_'
 train_target_path = './bpe_dataset/train_set/target_'
@@ -31,7 +34,6 @@ def load_data(path, mode=None):
 	data = np.load(path, encoding='bytes')
 	if mode == 'dictionary':
 		data = data.item()
-	print(path, len(data))
 	return data
 
 def _read_csv(path):
@@ -65,7 +67,7 @@ def _read_csv(path):
 	with open(path, 'r', newline='') as f:
 		wr = csv.reader(f)
 		for line, sentence in enumerate(wr):
-			if line == 1500:
+			if line == 5000:
 				break
 			data.append(np.array(sentence, dtype=np.int32))
 	return np.asarray(data, np.int32)
@@ -76,7 +78,7 @@ def _read_txt(path):
 	data = []
 	with open(path, 'r', encoding='utf-8') as f:
 		for line, sentence in enumerate(f):
-			if line == 1500:
+			if line == 5000:
 				break
 			# EOF check
 			if sentence == '\n' or sentence == ' ' or sentence == '':
@@ -190,6 +192,14 @@ def run(model, trainset, validset, testset, restore=0):
 	if restore != 0:
 		model.saver.restore(sess, saver_path+str(restore)+".ckpt")
 		print('restore:', restore)
+		#validation 
+		valid_bleu = infer(model, validset)
+		
+		#test
+		test_bleu = infer(model, testset)
+		print("epoch:", restore,'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
+
+
 
 	with tf.name_scope("tensorboard"):
 		train_loss_tensorboard = tf.placeholder(tf.float32, name='train_loss')
@@ -247,7 +257,7 @@ print('train_sentence_num:', train_sentence_num)
 print('valid_sentence_num:', valid_sentence_num)
 print('test_sentence_num:', test_sentence_num, '\n')
 
-train_batch_token = 12000
+train_batch_token = 12000 #12000
 train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
 valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
 test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
@@ -256,18 +266,22 @@ del train_dict, valid_dict, test_dict
 print('train_batch_token:', train_batch_token)
 bpe2idx = load_data(bpe2idx_path, mode='dictionary')
 idx2bpe = load_data(idx2bpe_path)
-
+print('voca_size:', len(bpe2idx), '\n')
 
 print("Model read")
 sess = tf.Session()
-#config = tf.ConfigProto()
-#config = tf.ConfigProto(allow_soft_placement=True)
-#config.gpu_options.allow_growth = True
-#sess = tf.Session(config=config)
 
 warmup_steps = 4000 #
-embedding_size = 512#256
-encoder_decoder_stack = 6
+embedding_size = 512#128#64#512#256
+encoder_decoder_stack = 6#4#6#2#6
+multihead_num = 8
+label_smoothing = 0.1
+
+print('warmup_steps:', warmup_steps)
+print('embedding_size:', embedding_size)
+print('encoder_decoder_stack:', encoder_decoder_stack)
+print('multihead_num:', multihead_num)
+print('label_smoothing:', label_smoothing, '\n')
 
 model = transformer.Transformer(
 		sess = sess,
@@ -276,15 +290,15 @@ model = transformer.Transformer(
 		is_embedding_scale = True, 
 		PE_sequence_length = 300,
 		encoder_decoder_stack = encoder_decoder_stack,
-		multihead_num = 8,
+		multihead_num = multihead_num,
 		go_idx=bpe2idx['</g>'], 
 		eos_idx=bpe2idx['</e>'], 
 		pad_idx=bpe2idx['</p>'],
-		label_smoothing=0.1
+		label_smoothing=label_smoothing
 	)
 infer_helper = inference_helper.greedy(sess, model, bpe2idx['</g>'])
 utils = inference_helper.utils()
 
-print('run, step_num applied')
+print('run')
 run(model, train_set, valid_set, test_set)
 

@@ -48,7 +48,11 @@ class Transformer:
 		with tf.name_scope("embedding_table"):
 			with tf.device('/cpu:0'):
 				zero = tf.zeros([1, self.embedding_size], dtype=tf.float32) # for padding 
-				embedding_table = tf.Variable(tf.random_uniform([self.voca_size-1, self.embedding_size], -1, 1))
+				#embedding_table = tf.Variable(tf.random_uniform([self.voca_size-1, self.embedding_size], -1, 1))
+				embedding_table = tf.get_variable( # https://github.com/tensorflow/models/blob/master/official/transformer/model/embedding_layer.py
+						'embedding_table', 
+						[self.voca_size-1, self.embedding_size], 
+						initializer=tf.random_normal_initializer(0., self.embedding_size ** -0.5))
 				front, end = tf.split(embedding_table, [self.pad_idx, self.voca_size-1-self.pad_idx])
 				self.embedding_table = tf.concat((front, zero, end), axis=0) # [self.voca_size, self.embedding_size]
 
@@ -320,6 +324,15 @@ class Transformer:
 				# 1 1 0 형태로 마스킹
 			
 			softmax = tf.nn.softmax(score, dim=2) # [self.multihead_num*N, query_sequence_length, key_value_sequence_length]
+		
+			if mask is not None:
+				softmax = softmax * mask # zero mask
+
+			# Attention dropout
+			# https://arxiv.org/abs/1706.03762v4 => v4 paper에는 attention dropout 하라고 되어 있음. 
+			softmax = tf.nn.dropout(softmax, keep_prob=self.keep_prob)
+			
+			# Attention weighted sum
 			attention = tf.matmul(softmax, V) # [self.multihead_num*N, query_sequence_length, self.embedding_size/self.multihead_num]			
 
 			# split: [N, query_sequence_length, self.embedding_size/self.multihead_num]이 self.multihead_num개 존재
@@ -332,7 +345,7 @@ class Transformer:
 					activation=activation,
 					use_bias=False
 				) # [N, query_sequence_length, self.embedding_size]
-			# Drop Out
+			# residual Drop Out
 			Multihead = tf.nn.dropout(Multihead, keep_prob=self.keep_prob)
 			# Add
 			Multihead += query
@@ -384,15 +397,25 @@ class Transformer:
 			dense = tf.contrib.layers.layer_norm(dense,	begin_norm_axis=2)
 	
 		return dense 
-
-	#https://github.com/tensorflow/models/blob/master/official/transformer/model/model_utils.py 
-	#구글 구현 코드랑은 다름.
+	
 	def positional_encoding(self):
-		PE = np.zeros([self.PE_sequence_length, self.embedding_size], dtype=np.float32)
+		PE = np.zeros([self.PE_sequence_length, self.embedding_size], np.float32)
+		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
+			sin, cos = [], []
+			for i in range(0, self.embedding_size//2): 
+				sin.append(np.sin( pos / np.power(10000, 2*i/self.embedding_size) ).astype(np.float32))
+				cos.append(np.cos( pos / np.power(10000, 2*i/self.embedding_size) ).astype(np.float32))
+			PE[pos] = np.concatenate((sin,cos))
+		return PE #[self.PE_sequence_length, self.embedding_siz]
+	
+	'''
+	# 기존
+	def positional_encoding(self):
+		PE = np.zeros([self.PE_sequence_length, self.embedding_size])
 		for pos in range(self.PE_sequence_length): #충분히 크게 만들어두고 slice 해서 쓰자.
 			for i in range(self.embedding_size//2): 
 				PE[pos, 2*i] = np.sin( pos / np.power(10000, 2*i/self.embedding_size) )
 				PE[pos, 2*i+1] = np.cos( pos / np.power(10000, 2*i/self.embedding_size) )
 		
 		return PE #[self.PE_sequence_length, self.embedding_siz]
-	
+	'''
