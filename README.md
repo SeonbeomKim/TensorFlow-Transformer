@@ -1,7 +1,10 @@
 # TensorFlow-Transformer
 Attention Is All You Need
 
-구현중
+
+## 실험중 
+![ing.PNG](./result_img/ing.PNG)
+
 
 ## Paper
    * Attention Is All You Need: https://arxiv.org/abs/1706.03762
