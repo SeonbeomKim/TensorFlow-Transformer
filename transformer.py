@@ -63,27 +63,22 @@ class Transformer:
 					axis=-1
 				) # [N, encoder_input_length, 1] 
 			
-			encoder_multihead_attention_mask = tf.matmul(
-					self.encoder_input_mask,
-					tf.transpose(self.encoder_input_mask, [0, 2, 1])
-				) # [N, encoder_input_length, encoder_input_length]
 			self.encoder_multihead_attention_mask = tf.tile(
-					encoder_multihead_attention_mask, 
+					tf.matmul(self.encoder_input_mask, tf.transpose(self.encoder_input_mask, [0, 2, 1])), # [N, encoder_input_length, encoder_input_length] 
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, encoder_input_length, encoder_input_length]
 			
-			ED_attention_decoder_mask = tf.transpose(self.encoder_input_mask, [0, 2, 1]) # [N, 1, encoder_input_length]
 			self.ED_attention_decoder_mask = tf.tile(
-					ED_attention_decoder_mask,
+					tf.transpose(self.encoder_input_mask, [0, 2, 1]), # [N, 1, encoder_input_length],
 					[self.multihead_num, 1, 1]
 				) # [self.multihead_num*N, 1, encoder_input_length] # 1 부분은 embedding_size만큼 broadcasting 됨.
-
 
 			self.decoder_mask = tf.sequence_mask(
 					tf.range(start=1, limit=self.decoder_input_length+1), # [start, limit)
 					maxlen=self.decoder_input_length,#.eval(session=sess),
 					dtype=tf.float32
 				) # [decoder_input_length, decoder_input_length]
+
 			self.target_pad_mask = tf.cast( #sequence_mask처럼 생성됨
 					tf.not_equal(self.target, self.pad_idx),
 					dtype=tf.float32
@@ -314,11 +309,13 @@ class Transformer:
 				# 1 1 1 형태로 마스킹
 
 				# encoder_multihead_mask
+				# if encoder_input_data: i like </pad>
 				# 1 1 0
 				# 1 1 0
 				# 0 0 0 형태로 마스킹
 
 				# ED_attention_mask
+				# if encoder_input_data: i like </pad>
 				# 1 1 0
 				# 1 1 0 
 				# 1 1 0 형태로 마스킹

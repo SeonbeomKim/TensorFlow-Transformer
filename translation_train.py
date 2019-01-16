@@ -257,7 +257,7 @@ print('train_sentence_num:', train_sentence_num)
 print('valid_sentence_num:', valid_sentence_num)
 print('test_sentence_num:', test_sentence_num, '\n')
 
-train_batch_token = 12000 #12000
+train_batch_token = 11000 #12000
 train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
 valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
 test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
