@@ -15,6 +15,7 @@ class bucket_data:
 		data_list = []
 		for key in self.data:
 			batch_size = self.batch_token // sum(key) # batch_token //sum(@@) 이 0인것을 대비함. 
+			#batch_size = min(self.batch_token // (key[0]), self.batch_token // (key[1])) # batch_token //sum(@@) 이 0인것을 대비함. 
 			
 			for i in range( int(np.ceil(len(self.data[key][0])/batch_size)) ):
 				bucket_data = self.data[key]
