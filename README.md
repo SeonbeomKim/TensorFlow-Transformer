@@ -31,17 +31,11 @@ Attention Is All You Need
       * train_set: corpus.tc.[en, de]
       * dev_set: dev/newstest[2014, 2015, 2016].tc.[en, de]
        
-   * [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
-      * MakeFile:
-         * bpe_dataset/
-            * bpe_applied_data
-         * npy/
-            * bpe2idx.npy
-            * idx2bpe.npy
-            * cache.npy
-            * merge_info.npy
-            
-
+   * learn and apply [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
+      * num_merges: 35000
+      * final_voca_threshold: 50    
+      * generated bpe files are in bpe_dataset/
+      
 ## Code
    * transformer.py
       * Transformer graph
