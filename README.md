@@ -42,7 +42,7 @@ Attention Is All You Need
 
    * inference_helper.py
       * greedy
-      * beam
+      * beam (length penalty applied)
       * bleu (nltk)
               
    * bucket_data_helper.py
