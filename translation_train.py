@@ -10,25 +10,17 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-#bucket  (source, target)
-train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
-infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
-#train_bucket = [(i*5, i*5 + j*10) for i in range(3, 5) for j in range(2)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
-#infer_bucket = [(i*5, i*5+50) for i in range(1, 5)] # [(5, 55), (10, 60), ..., (150, 200)]
-
-
-train_source_path = './bpe_dataset/train_set/source_'
-train_target_path = './bpe_dataset/train_set/target_'
-valid_source_path = './bpe_dataset/valid_set/source_'
-valid_target_path = './bpe_dataset/valid_set/target_'
-test_source_path = './bpe_dataset/test_set/source_'
-test_target_path = './bpe_dataset/test_set/target_'
+train_path_2017 = './bpe_dataset/train_set_wmt17/'
+valid_path_2014 = './bpe_dataset/valid_set_newstest2014/'
+test_path_2015 = './bpe_dataset/test_set_newstest2015/'
+test_path_2016 = './bpe_dataset/test_set_newstest2016/'
 
 bpe2idx_path = './npy/bpe2idx.npy'
 idx2bpe_path = './npy/idx2bpe.npy'
 
 saver_path = './saver/'
 tensorboard_path = './tensorboard/'
+
 
 def load_data(path, mode=None):
 	data = np.load(path, encoding='bytes')
@@ -37,7 +29,6 @@ def load_data(path, mode=None):
 	return data
 
 def _read_csv(path):
-	print('read csv data', path)
 	data = np.loadtxt(
 			path, 
 			delimiter=",", 
@@ -47,75 +38,54 @@ def _read_csv(path):
 	return data
 
 def _read_txt(path):
-	print('read txt data', path)
-	data = []
 	with open(path, 'r', encoding='utf-8') as f:
-		for sentence in f:
-			# EOF check
-			if sentence == '\n' or sentence == ' ' or sentence == '':
-				break
-			if sentence[-1] == '\n':
-				sentence = sentence[:-1]
-			data.append(sentence.split())					
-		return data
-
-'''
-import csv
-def _read_csv(path):
-	print('read csv data', path)
+		documents = f.readlines()
+	
 	data = []
-	with open(path, 'r', newline='') as f:
-		wr = csv.reader(f)
-		for line, sentence in enumerate(wr):
-			if line == 5000:
-				break
-			data.append(np.array(sentence, dtype=np.int32))
-	return np.asarray(data, np.int32)
+	for sentence in documents:
+		data.append(sentence.strip().split())					
+	return data
 
 
-def _read_txt(path):
-	print('read txt data', path)
-	data = []
-	with open(path, 'r', encoding='utf-8') as f:
-		for line, sentence in enumerate(f):
-			if line == 5000:
-				break
-			# EOF check
-			if sentence == '\n' or sentence == ' ' or sentence == '':
-				break
-			if sentence[-1] == '\n':
-				sentence = sentence[:-1]
-			data.append(sentence.split())					
-		return data
-'''
+def _get_bucket_name(path):
+	bucket = {}
+	for filename in os.listdir(path):
+		bucket[filename.split('.')[-2].split('_')[-1]] = 1
+	return tuple(bucket.keys())
 
-def read_data_set(sentence_path, target_path, bucket, target_type='csv'):
+
+def read_data_set(path, target_type='csv'):
+	buckets = _get_bucket_name(path)
+	
 	dictionary = {}
 	total_sentence = 0
-	for bucket_size in bucket:
-		sentence = _read_csv(sentence_path+str(bucket_size)+'.csv')
+	
+	for i in tqdm(range(len(buckets)), ncols=50):
+		bucket = buckets[i] # '(35, 35)' string
+		
+		source_path = path+'source_'+bucket+'.csv'
+		sentence = _read_csv(source_path)
 		
 		if target_type == 'csv':
-			target = _read_csv(target_path+str(bucket_size)+'.csv')
+			target_path = path+'target_'+bucket+'.csv'
+			target = _read_csv(target_path)
 		else:
-			target = _read_txt(target_path+str(bucket_size)+'.txt')
+			target_path = path+'target_'+bucket+'.txt'
+			target = _read_txt(target_path)
 
 		# 개수가 0인 bucket은 버림.
 		sentence_num = len(sentence)
 		if sentence_num != 0:
 			total_sentence += sentence_num
+			
+			sentence_bucket, target_bucket = bucket[1:-1].split(',')
+			tuple_bucket = (int(sentence_bucket), int(target_bucket))
+			dictionary[tuple_bucket] = [sentence, target]
 
-			dictionary[bucket_size] = [sentence, target]
-			if target_type =='csv':
-				print(sentence.shape, target.shape, '\n')
-			else:
-				print(sentence.shape, len(target), '\n')
-		else:
-			print('# data: 0')
+	print('data_path:', path, 'data_size:', total_sentence, '\n')
+	return dictionary
 
-	print('\n\n')
-	return dictionary, total_sentence
-		
+
 
 def get_lr(embedding_size, step_num):
 	'''
@@ -152,8 +122,8 @@ def train(model, data, epoch):
 				}
 			)
 		loss += train_loss
-		if (i+1) % 5000 == 0:
-			print(i+1,loss/(i+1), 'lr:', lr)
+		#if (i+1) % 5000 == 0:
+		#	print(i+1,loss/(i+1), 'lr:', lr)
 
 	print('current step_num:', step_num, 'lr:', lr)
 	return loss/total_iter
@@ -188,27 +158,22 @@ def infer(model, data):
 
 
 
-def run(model, trainset, validset, testset, restore=0):
+def run(model, trainset2017, validset2014, testset2015, testset2016, restore=0):
 	if restore != 0:
 		model.saver.restore(sess, saver_path+str(restore)+".ckpt")
 		print('restore:', restore)
-		#validation 
-		valid_bleu = infer(model, validset)
-		
-		#test
-		test_bleu = infer(model, testset)
-		print("epoch:", restore,'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
-
-
+	
 
 	with tf.name_scope("tensorboard"):
-		train_loss_tensorboard = tf.placeholder(tf.float32, name='train_loss')
-		valid_bleu_tensorboard = tf.placeholder(tf.float32, name='valid_bleu')
-		test_bleu_tensorboard = tf.placeholder(tf.float32, name='test_bleu')
+		train_loss_tensorboard_2017 = tf.placeholder(tf.float32, name='train_loss_2017')
+		valid_bleu_tensorboard_2014 = tf.placeholder(tf.float32, name='valid_bleu_2014')
+		test_bleu_tensorboard_2015 = tf.placeholder(tf.float32, name='test_bleu_2015')
+		test_bleu_tensorboard_2016 = tf.placeholder(tf.float32, name='test_bleu_2016')
 
-		train_summary = tf.summary.scalar("train_loss", train_loss_tensorboard)
-		valid_summary = tf.summary.scalar("valid_bleu", valid_bleu_tensorboard)
-		test_summary = tf.summary.scalar("test_bleu", test_bleu_tensorboard)
+		train_summary_2017 = tf.summary.scalar("train_loss_wmt17", train_loss_tensorboard_2017)
+		valid_summary_2014 = tf.summary.scalar("valid_bleu_newstest2014", valid_bleu_tensorboard_2014)
+		test_summary_2015 = tf.summary.scalar("test_bleu_newstest2015", test_bleu_tensorboard_2015)
+		test_summary_2016 = tf.summary.scalar("test_bleu_newstest2016", test_bleu_tensorboard_2016)
 				
 		merged = tf.summary.merge_all()
 		writer = tf.summary.FileWriter(tensorboard_path, sess.graph)
@@ -222,66 +187,68 @@ def run(model, trainset, validset, testset, restore=0):
 	
 	for epoch in range(restore+1, 20000+1):
 		#train 
-		train_loss = train(model, trainset, epoch)
+		train_loss_2017 = train(model, trainset2017, epoch)
 		
 		#save
 		model.saver.save(sess, saver_path+str(epoch)+".ckpt")
 		
 		#validation 
-		valid_bleu = infer(model, validset)
+		valid_bleu_2014 = infer(model, validset2014)
 		
 		#test
-		test_bleu = infer(model, testset)
-		print("epoch:", epoch, 'train_loss:', train_loss,  'valid_bleu:', valid_bleu, 'test_bleu:', test_bleu, '\n')
+		test_bleu_2015 = infer(model, testset2015)
+		test_bleu_2016 = infer(model, testset2016)
+		print("epoch:", epoch)
+		print('train_loss_wmt17:', train_loss_2017, 'valid_bleu_newstest2014:', valid_bleu_2014)
+		print('test_bleu_newstest2015:', test_bleu_2015, 'test_bleu_newstest2016:', test_bleu_2016, '\n')
 		
 		
 		#tensorboard
 		summary = sess.run(merged, {
-					train_loss_tensorboard:train_loss, 
-					valid_bleu_tensorboard:valid_bleu,
-					test_bleu_tensorboard:test_bleu, 
+					train_loss_tensorboard_2017:train_loss_2017, 
+					valid_bleu_tensorboard_2014:valid_bleu_2014,
+					test_bleu_tensorboard_2015:test_bleu_2015, 
+					test_bleu_tensorboard_2016:test_bleu_2016, 
 				}
 			)		
 		writer.add_summary(summary, epoch)
 		
 
 
-
-
-
 print('Data read') # key: bucket_size(tuple) , value: [source, target]
-train_dict, train_sentence_num = read_data_set(train_source_path, train_target_path, train_bucket)
-valid_dict, valid_sentence_num = read_data_set(valid_source_path, valid_target_path, infer_bucket, 'txt')
-test_dict, test_sentence_num = read_data_set(test_source_path, test_target_path, infer_bucket, 'txt')
-print('train_sentence_num:', train_sentence_num)
-print('valid_sentence_num:', valid_sentence_num)
-print('test_sentence_num:', test_sentence_num, '\n')
+train_dict_2017 = read_data_set(train_path_2017)
+valid_dict_2014 = read_data_set(valid_path_2014, 'txt')
+test_dict_2015 = read_data_set(test_path_2015, 'txt')
+test_dict_2016 = read_data_set(test_path_2016, 'txt')
 
-train_batch_token = 11000 #12000
-train_set = bucket_data_helper.bucket_data(train_dict, batch_token = train_batch_token) # batch_token // len(sentence||target token) == batch_size
-valid_set = bucket_data_helper.bucket_data(valid_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
-test_set = bucket_data_helper.bucket_data(test_dict, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
-del train_dict, valid_dict, test_dict
+train_set_2017 = bucket_data_helper.bucket_data(train_dict_2017, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+valid_set_2014 = bucket_data_helper.bucket_data(valid_dict_2014, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
+test_set_2015 = bucket_data_helper.bucket_data(test_dict_2015, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
+test_set_2016 = bucket_data_helper.bucket_data(test_dict_2016, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
+del train_dict_2017, valid_dict_2014, test_dict_2015, test_dict_2016
 
-print('train_batch_token:', train_batch_token)
-bpe2idx = load_data(bpe2idx_path, mode='dictionary')
-idx2bpe = load_data(idx2bpe_path)
-print('voca_size:', len(bpe2idx), '\n')
 
 print("Model read")
 sess = tf.Session()
 
-warmup_steps = 4000 #
-embedding_size = 512#128#64#512#256
-encoder_decoder_stack = 6#4#6#2#6
+bpe2idx = load_data(bpe2idx_path, mode='dictionary')
+idx2bpe = load_data(idx2bpe_path)
+warmup_steps = 4000 * 8 # paper warmup_steps: 4000(with 8-gpus), so warmup_steps of single gpu: 4000*8
+embedding_size = 512
+encoder_decoder_stack = 6
 multihead_num = 8
 label_smoothing = 0.1
+beam_width = 4
+length_penalty = 0.6
 
+print('voca_size:', len(bpe2idx))
 print('warmup_steps:', warmup_steps)
 print('embedding_size:', embedding_size)
 print('encoder_decoder_stack:', encoder_decoder_stack)
 print('multihead_num:', multihead_num)
-print('label_smoothing:', label_smoothing, '\n')
+print('label_smoothing:', label_smoothing)
+print('beam_width:', beam_width)
+print('length_penalty:', length_penalty, '\n')
 
 model = transformer.Transformer(
 		sess = sess,
@@ -291,14 +258,32 @@ model = transformer.Transformer(
 		PE_sequence_length = 300,
 		encoder_decoder_stack = encoder_decoder_stack,
 		multihead_num = multihead_num,
-		go_idx=bpe2idx['</g>'], 
 		eos_idx=bpe2idx['</e>'], 
 		pad_idx=bpe2idx['</p>'],
 		label_smoothing=label_smoothing
 	)
-infer_helper = inference_helper.greedy(sess, model, bpe2idx['</g>'])
+
+# beam search
+infer_helper = inference_helper.beam(
+		sess = sess, 
+		model = model, 
+		go_idx = bpe2idx['</g>'], 
+		eos_idx = bpe2idx['</e>'], 
+		beam_width = beam_width, 
+		length_penalty = length_penalty
+	)
+# bleu util
 utils = inference_helper.utils()
 
-print('run')
-run(model, train_set, valid_set, test_set)
 
+print('run')
+run(model, train_set_2017, valid_set_2014, test_set_2015, test_set_2016)
+
+'''
+# greedy search
+infer_helper = inference_helper.greedy(
+		sess = sess, 
+		model = model, 
+		go_idx = bpe2idx['</g>']
+	)
+'''

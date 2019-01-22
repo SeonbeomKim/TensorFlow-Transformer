@@ -9,13 +9,16 @@ class bucket_data:
 	def get_dataset(self, bucket_shuffle=False, dataset_shuffle=False):
 		# bucket_shuffle: 버켓별로 셔플.
 		# dataset_shuffle: data_list 셔플 
-		if bucket_shuffle is True:
-			self.shuffle()
 
 		data_list = []
 		for key in self.data:
-			batch_size = self.batch_token // sum(key) # batch_token //sum(@@) 이 0인것을 대비함. 
-			#batch_size = min(self.batch_token // (key[0]), self.batch_token // (key[1])) # batch_token //sum(@@) 이 0인것을 대비함. 
+			batch_size = self.batch_token // sum(key) 
+
+			if bucket_shuffle is True:
+				source, target = self.data[key]
+				indices = np.arange(len(source))
+				np.random.shuffle(indices)
+				self.data[key] = [source[indices], target[indices]]
 			
 			for i in range( int(np.ceil(len(self.data[key][0])/batch_size)) ):
 				bucket_data = self.data[key]
@@ -26,12 +29,3 @@ class bucket_data:
 		if dataset_shuffle is True:
 			np.random.shuffle(data_list)
 		return data_list
-
-
-	def shuffle(self):
-		for key in self.data:
-			source, target = self.data[key]
-			indices = np.arange(len(source))
-			np.random.shuffle(indices)
-			self.data[key] = [source[indices], target[indices]]
-

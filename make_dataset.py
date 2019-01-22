@@ -219,23 +219,23 @@ bpe2idx, _ = make_bpe2idx(voca, npy_path)
 # make trainset
 data_path = {'source':'./bpe_dataset/bpe_wmt17.en', 'target':'./bpe_dataset/bpe_wmt17.de'}
 idx_out_path = {'source':'./bpe_dataset/source_idx_wmt17_en.csv', 'target':'./bpe_dataset/target_idx_wmt17_de.csv'}
-bucket_out_path = './bpe_dataset/train_set/'
+bucket_out_path = './bpe_dataset/train_set_wmt17/'
 make_bucket_dataset(data_path, idx_out_path, bucket_out_path, train_bucket, bpe2idx)
 
 # make validset
 data_path = {'source':'./bpe_dataset/bpe_newstest2014.en', 'target':'./dataset/dev.tar/newstest2014.tc.de'}
 idx_out_path = {'source':'./bpe_dataset/source_idx_newstest2014_en.csv'}
-bucket_out_path = './bpe_dataset/valid_set/'
+bucket_out_path = './bpe_dataset/valid_set_newstest2014/'
 make_bucket_dataset(data_path, idx_out_path, bucket_out_path, infer_bucket, bpe2idx, is_trainset=False)
 
 # make testset
 data_path = {'source':'./bpe_dataset/bpe_newstest2015.en', 'target':'./dataset/dev.tar/newstest2015.tc.de'}
 idx_out_path = {'source':'./bpe_dataset/source_idx_newstest2015_en.csv'}
-bucket_out_path = './bpe_dataset/test_set/'
+bucket_out_path = './bpe_dataset/test_set_newstest2015/'
 make_bucket_dataset(data_path, idx_out_path, bucket_out_path, infer_bucket, bpe2idx, is_trainset=False)
 
 # make testset
 data_path = {'source':'./bpe_dataset/bpe_newstest2016.en', 'target':'./dataset/dev.tar/newstest2016.tc.de'}
 idx_out_path = {'source':'./bpe_dataset/source_idx_newstest2016_en.csv'}
-bucket_out_path = './bpe_dataset/test_set/'
-make_bucket_dataset(data_path, idx_out_path, bucket_out_path, infer_bucket, bpe2idx, file_mode='a', is_trainset=False)
+bucket_out_path = './bpe_dataset/test_set_newstest2016/'
+make_bucket_dataset(data_path, idx_out_path, bucket_out_path, infer_bucket, bpe2idx, is_trainset=False)
