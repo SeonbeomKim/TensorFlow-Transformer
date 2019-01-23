@@ -22,7 +22,7 @@ Attention Is All You Need
    * numpy
    * nltk (bleu)
    * tqdm (iteration check bar)
-   * python 3.6
+   * python 3
    
 
 
