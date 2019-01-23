@@ -2,7 +2,7 @@
 Attention Is All You Need
 
 
-## 실험중 
+## EN -> DE 실험중 
 ![ing.PNG](./result_img/ing.PNG)
 
 
