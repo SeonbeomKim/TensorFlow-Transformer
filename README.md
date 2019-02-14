@@ -2,8 +2,8 @@
 Attention Is All You Need
 
 
-## EN -> DE 실험중 
-![ing.PNG](./result_img/ing.PNG)
+## Translate EN into DE
+![final.PNG](./result_img/final.PNG)
 
 
 ## Paper
