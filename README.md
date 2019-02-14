@@ -2,7 +2,10 @@
 Attention Is All You Need
 
 
-## Translate EN into DE
+## Translate EN into DE (Train with WMT17)
+   * newstest2014 BLEU: 28.51
+   * newstest2015 BLEU: 30.22
+   * newstest2016 BLEU: 33.88
 ![final.PNG](./result_img/final.PNG)
 
 
