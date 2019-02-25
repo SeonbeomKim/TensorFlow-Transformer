@@ -37,7 +37,8 @@ Attention Is All You Need
    * learn and apply [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
       * -num_merges: 35000
       * -final_voca_threshold: 50    
-      * generate bpe applied files and voca
+      * -train_voca_threshold: 1
+      * make_file: bpe applied documents and voca
       
 ## Code
    * transformer.py
