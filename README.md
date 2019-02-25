@@ -37,7 +37,7 @@ Attention Is All You Need
    * learn and apply [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
       * -num_merges: 35000
       * -final_voca_threshold: 50    
-      * generated bpe files and voca
+      * generate bpe applied files and voca
       
 ## Code
    * transformer.py
@@ -59,9 +59,9 @@ Attention Is All You Need
          ```
           python make_dataset.py 
             -mode train 
-            -source_input_path path/bpe_wmt17.en [bpe text data]
+            -source_input_path path/bpe_wmt17.en [bpe applied document data]
             -source_out_path path/source_idx_wmt17_en.csv [bpe idx data]
-            -target_input_path path/bpe_wmt17.de [bpe text data]
+            -target_input_path path/bpe_wmt17.de [bpe applied document data]
             -target_out_path path/source_idx_wmt17_de.csv [bpe idx data
             -bucket_out_path ./bpe_dataset/train_set_wmt17 [bucket trainset]
             -voca_path voca_path/voca_file_name [bpe voca]
@@ -70,7 +70,7 @@ Attention Is All You Need
          ```
           python make_dataset.py 
             -mode infer 
-            -source_input_path path/bpe_newstest2014.en [bpe text data]
+            -source_input_path path/bpe_newstest2014.en [bpe applied document data]
             -source_out_path path/source_idx_newstest2014_en.csv [bpe idx data]
             -target_input_path path/dev.tar/newstest2014.tc.de [original raw data]
             -bucket_out_path ./bpe_dataset/valid_set_newstest2014 [bucket validset]
@@ -80,7 +80,7 @@ Attention Is All You Need
          ```
           python make_dataset.py 
             -mode infer 
-            -source_input_path path/bpe_newstest2015.en [bpe text data]
+            -source_input_path path/bpe_newstest2015.en [bpe applied document data]
             -source_out_path path/source_idx_newstest2015_en.csv [bpe idx data]
             -target_input_path path/dev.tar/newstest2015.tc.de [original raw data]
             -bucket_out_path ./bpe_dataset/valid_set_newstest2015 [bucket testset]
@@ -90,7 +90,7 @@ Attention Is All You Need
          ```
           python make_dataset.py 
             -mode infer 
-            -source_input_path path/bpe_newstest2016.en [bpe text data]
+            -source_input_path path/bpe_newstest2016.en [bpe applied document data]
             -source_out_path path/source_idx_newstest2016_en.csv [bpe idx data]
             -target_input_path path/dev.tar/newstest2016.tc.de [original raw data]
             -bucket_out_path ./bpe_dataset/valid_set_newstest2016 [bucket testset]
