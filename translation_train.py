@@ -6,27 +6,60 @@ import bucket_data_helper
 import os
 from tqdm import tqdm
 import warnings
+import argparse
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-train_path_2017 = './bpe_dataset/train_set_wmt17/'
-valid_path_2014 = './bpe_dataset/valid_set_newstest2014/'
-test_path_2015 = './bpe_dataset/test_set_newstest2015/'
-test_path_2016 = './bpe_dataset/test_set_newstest2016/'
+parser = argparse.ArgumentParser()
+parser.add_argument(
+		'-train_path_2017', 
+		help="train_path",
+		required=True
+	)
+parser.add_argument(
+		'-valid_path_2014', 
+		help="valid_path",
+		required=True
+	)
+parser.add_argument(
+		'-test_path_2015', 
+		help="test_path",
+		required=True
+	)
+parser.add_argument(
+		'-test_path_2016', 
+		help="test_path",
+		required=True
+	)
+parser.add_argument(
+		'-voca_path', 
+		help="Vocabulary_path",
+		required=True
+	)
 
-bpe2idx_path = './npy/bpe2idx.npy'
-idx2bpe_path = './npy/idx2bpe.npy'
+args = parser.parse_args()
+train_path_2017 = args.train_path_2017
+valid_path_2014 = args.valid_path_2014
+test_path_2015 = args.test_path_2015
+test_path_2016 = args.test_path_2016
+voca_path = args.voca_path
+
 
 saver_path = './saver/'
 tensorboard_path = './tensorboard/'
 
 
-def load_data(path, mode=None):
-	data = np.load(path, encoding='bytes')
-	if mode == 'dictionary':
-		data = data.item()
-	return data
+def read_voca(path):
+	sorted_voca = []
+	with open(path, 'r', encoding='utf-8') as f:	
+		for bpe_voca in f:
+			bpe_voca = bpe_voca.strip()
+			if bpe_voca:
+				bpe_voca = bpe_voca.split()
+				sorted_voca.append(bpe_voca)
+	return sorted_voca
+
 
 def _read_csv(path):
 	data = np.loadtxt(
@@ -54,6 +87,19 @@ def _get_bucket_name(path):
 	return tuple(bucket.keys())
 
 
+def make_bpe2idx(voca):
+	bpe2idx = {'</p>':0, '</UNK>':1, '</g>':2, '</e>':3}	
+	idx2bpe = ['</p>', '</UNK>', '</g>', '</e>']
+	idx = 4
+
+	for word, _ in voca:
+		bpe2idx[word] = idx
+		idx += 1
+		idx2bpe.append(word)
+
+	return bpe2idx, idx2bpe
+
+
 def read_data_set(path, target_type='csv'):
 	buckets = _get_bucket_name(path)
 	
@@ -63,14 +109,14 @@ def read_data_set(path, target_type='csv'):
 	for i in tqdm(range(len(buckets)), ncols=50):
 		bucket = buckets[i] # '(35, 35)' string
 		
-		source_path = path+'source_'+bucket+'.csv'
+		source_path = os.path.join(path, 'source_'+bucket+'.csv')
 		sentence = _read_csv(source_path)
 		
 		if target_type == 'csv':
-			target_path = path+'target_'+bucket+'.csv'
+			target_path = os.path.join(path, 'target_'+bucket+'.csv')
 			target = _read_csv(target_path)
 		else:
-			target_path = path+'target_'+bucket+'.txt'
+			target_path = os.path.join(path, 'target_'+bucket+'.txt')
 			target = _read_txt(target_path)
 
 		# 개수가 0인 bucket은 버림.
@@ -231,8 +277,8 @@ del train_dict_2017, valid_dict_2014, test_dict_2015, test_dict_2016
 print("Model read")
 sess = tf.Session()
 
-bpe2idx = load_data(bpe2idx_path, mode='dictionary')
-idx2bpe = load_data(idx2bpe_path)
+voca = read_voca(voca_path)
+bpe2idx, idx2bpe = make_bpe2idx(voca)
 warmup_steps = 4000 * 8 # paper warmup_steps: 4000(with 8-gpus), so warmup_steps of single gpu: 4000*8
 embedding_size = 512
 encoder_decoder_stack = 6
