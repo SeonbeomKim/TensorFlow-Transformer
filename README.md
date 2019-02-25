@@ -99,14 +99,15 @@ Attention Is All You Need
    * translation_train.py
      * en -> de translation train, validation, test
      * command
-     ```
-      python translation_train.py 
-        -train_path_2017 ./bpe_dataset/train_set_wmt17 
-        -valid_path_2014 ./bpe_dataset/valid_set_newstest2014 
-        -test_path_2015 ./bpe_dataset/valid_set_newstest2015 
-        -test_path_2016 ./bpe_dataset/valid_set_newstest2016 
-        -voca_path voca_path/voca_file_name
-     ```
+       ```
+        python translation_train.py 
+          -train_path_2017 ./bpe_dataset/train_set_wmt17 
+          -valid_path_2014 ./bpe_dataset/valid_set_newstest2014 
+          -test_path_2015 ./bpe_dataset/valid_set_newstest2015 
+          -test_path_2016 ./bpe_dataset/valid_set_newstest2016 
+          -voca_path voca_path/voca_file_name
+       ```
+       
 ## Training
    1. [WMT17 Dataset Download](http://data.statmt.org/wmt17/translation-task/preprocessed/)  
    2. [apply byte-pair_encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
