@@ -54,23 +54,59 @@ Attention Is All You Need
    * make_dataset.py
       * generate bucketed bpe2idx dataset for train, valid, test from bpe applied dataset
       * need MakeFile of [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding) 
-      * MakeFile: 
-         * bpe_dataset/
-            * source_idx_wmt17_en.csv (train)
-            * target_idx_wmt17_de.csv (train)
-            * source_idx_newstest2014_en.csv (valid)
-            * source_idx_newstest2015_en.csv (test)
-            * source_idx_newstest2016_en.csv (test)
-            * train_set_wmt17/
-               * source_(bucket_size).csv
-               * target_(bucket_size).csv
-            * [valid_set_newstest2014/, test_set_newstest2015/, test_set_newstest2016/]
-               * source_(bucket_size).csv
-               * target_(bucket_size).txt
-               
+      * command: 
+         * make bucket train_set wmt17
+         ```
+          python make_dataset.py 
+            -mode train 
+            -source_input_path path/bpe_wmt17.en [bpe text data]
+            -source_out_path path/source_idx_wmt17_en.csv [bpe idx data]
+            -target_input_path path/bpe_wmt17.de [bpe text data]
+            -target_out_path path/source_idx_wmt17_de.csv [bpe idx data
+            -bucket_out_path ./bpe_dataset/train_set_wmt17 [bucket trainset]
+            -voca_path voca_path/voca_file_name [bpe voca]
+         ```
+         * make bucket valid_set newstest2014
+         ```
+          python make_dataset.py 
+            -mode infer 
+            -source_input_path path/bpe_newstest2014.en [bpe text data]
+            -source_out_path path/source_idx_newstest2014_en.csv [bpe idx data]
+            -target_input_path path/dev.tar/newstest2014.tc.de [original raw data]
+            -bucket_out_path ./bpe_dataset/valid_set_newstest2014 [bucket validset]
+            -voca_path voca_path/voca_file_name [bpe voca]
+         ```
+         * make bucket valid_set newstest2015
+         ```
+          python make_dataset.py 
+            -mode infer 
+            -source_input_path path/bpe_newstest2015.en [bpe text data]
+            -source_out_path path/source_idx_newstest2015_en.csv [bpe idx data]
+            -target_input_path path/dev.tar/newstest2015.tc.de [original raw data]
+            -bucket_out_path ./bpe_dataset/valid_set_newstest2015 [bucket testset]
+            -voca_path voca_path/voca_file_name [bpe voca]
+         ```
+         * make bucket valid_set newstest2016
+         ```
+          python make_dataset.py 
+            -mode infer 
+            -source_input_path path/bpe_newstest2016.en [bpe text data]
+            -source_out_path path/source_idx_newstest2016_en.csv [bpe idx data]
+            -target_input_path path/dev.tar/newstest2016.tc.de [original raw data]
+            -bucket_out_path ./bpe_dataset/valid_set_newstest2016 [bucket testset]
+            -voca_path voca_path/voca_file_name [bpe voca]
+         ```
    * translation_train.py
      * en -> de translation train, validation, test
-
+     * command
+     ```
+      python translation_train.py 
+        -train_path_2017 ./bpe_dataset/train_set_wmt17 
+        -valid_path_2014 ./bpe_dataset/valid_set_newstest2014 
+        -test_path_2015 ./bpe_dataset/valid_set_newstest2015 
+        -test_path_2016 ./bpe_dataset/valid_set_newstest2016 
+        -voca_path voca_path/voca_file_name
+     ```
 ## Training
    1. [WMT17 Dataset Download](http://data.statmt.org/wmt17/translation-task/preprocessed/)  
    2. [apply byte-pair_encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
