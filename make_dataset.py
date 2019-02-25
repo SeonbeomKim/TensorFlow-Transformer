@@ -1,33 +1,80 @@
+import argparse
 import numpy as np
 import csv
 import os
 from tqdm import tqdm
 
-def save_data(path, data):
-	np.save(path, data)
+parser = argparse.ArgumentParser()
+parser.add_argument(
+		'-mode', 
+		help="train or infer",
+		choices=['train', 'infer'],
+		required=True, 
+	)
+parser.add_argument(
+		'-source_input_path', 
+		help="source document path",
+		required=True, 
+	)
+parser.add_argument(
+		'-source_out_path', 
+		help="preprocessed source output path",
+		required=True, 
+	)
+parser.add_argument(
+		'-target_input_path', 
+		help="target document path",
+		required=True, 
+	)
+parser.add_argument(
+		'-target_out_path', 
+		help="preprocessed target output path",
+		required=False
+	)
+parser.add_argument(
+		'-bucket_out_path', 
+		help="bucket output path",
+		required=True, 
+	)
+parser.add_argument(
+		'-voca_path', 
+		help="Vocabulary_path",
+		required=True
+	)
 
-def load_data(path, mode=None):
-	data = np.load(path, encoding='bytes')
-	if mode == 'dictionary':
-		data = data.item()
-	return data
+args = parser.parse_args()
+
+mode = args.mode 
+source_input_path = args.source_input_path
+source_out_path = args.source_out_path
+target_input_path = args.target_input_path
+target_out_path = args.target_out_path
+bucket_out_path = args.bucket_out_path
+voca_path = args.voca_path
 
 
-def make_bpe2idx(voca, npy_path):
+
+def read_voca(path):
+	sorted_voca = []
+	with open(path, 'r', encoding='utf-8') as f:	
+		for bpe_voca in f:
+			bpe_voca = bpe_voca.strip()
+			if bpe_voca:
+				bpe_voca = bpe_voca.split()
+				sorted_voca.append(bpe_voca)
+	return sorted_voca
+
+
+
+def make_bpe2idx(voca):
 	bpe2idx = {'</p>':0, '</UNK>':1, '</g>':2, '</e>':3}	
-	idx2bpe = ['</p>', '</UNK>', '</g>', '</e>']
 	idx = 4
 
 	for word, _ in voca:
 		bpe2idx[word] = idx
 		idx += 1
-		idx2bpe.append(word)
 
-	save_data(npy_path+'bpe2idx.npy', bpe2idx)
-	save_data(npy_path+'idx2bpe.npy', idx2bpe)
-	print('save bpe2idx, size:', len(bpe2idx))
-	print('save idx2bpe, size:', len(idx2bpe))
-	return bpe2idx, idx2bpe
+	return bpe2idx
 
 
 
@@ -74,16 +121,16 @@ def _make_bucket_dataset(source_path, target_path, out_path, bucket, pad_idx, fi
 	source_open_list = []
 	target_open_list = []
 	for bucket_size in bucket:
-		o_s = open(out_path+'source_'+str(bucket_size)+'.csv', file_mode, newline='')
+		o_s = open(os.path.join(out_path, 'source_'+str(bucket_size)+'.csv'), file_mode, newline='')
 		o_s_csv = csv.writer(o_s)
 		source_open_list.append((o_s, o_s_csv))
 		
 		if is_trainset:
-			o_t = open(out_path+'target_'+str(bucket_size)+'.csv', file_mode, newline='')
+			o_t = open(os.path.join(out_path, 'target_'+str(bucket_size)+'.csv'), file_mode, newline='')
 			o_t_csv = csv.writer(o_t)
 			target_open_list.append((o_t, o_t_csv))
 		else:
-			o_t = open(out_path+'target_'+str(bucket_size)+'.txt', file_mode, encoding='utf-8')
+			o_t = open(os.path.join(out_path, 'target_'+str(bucket_size)+'.txt'), file_mode, encoding='utf-8')
 			target_open_list.append(o_t)
 
 
@@ -199,23 +246,48 @@ def make_bucket_dataset(data_path, idx_out_path, bucket_out_path, bucket, bpe2id
 
 
 
-#bucket  (source, target)
-train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
-infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
-print('train_bucket\n', train_bucket,'\n')
-print('infer_bucket\n', infer_bucket,'\n')
-
-npy_path = './npy/'
-voca_path = npy_path+'final_voca.npy'
-final_voca_threshold = 50
-
-voca = load_data(voca_path)
-print('original voca size:', len(voca))
-voca = [(word, int(freq)) for (word, freq) in voca if int(freq) >= final_voca_threshold]
-print('threshold applied voca size:', len(voca), '\n')
-bpe2idx, _ = make_bpe2idx(voca, npy_path)
+voca = read_voca(voca_path)
+bpe2idx = make_bpe2idx(voca)
 
 
+
+
+if mode == 'train':
+	data_path = {'source':source_input_path, 'target':target_input_path}
+	idx_out_path = {'source':source_out_path, 'target':target_out_path}
+	
+	#bucket  (source, target)
+	train_bucket = [(i*5, i*5 + j*10) for i in range(1, 31) for j in range(4)]# [(5, 5), (5, 15), .., (5, 35), ... , (150, 150), .., (150, 180)]
+	print('train_bucket\n', train_bucket,'\n')
+	
+	make_bucket_dataset(
+			data_path, 
+			idx_out_path, 
+			bucket_out_path, 
+			train_bucket, 
+			bpe2idx
+		)
+
+elif mode == 'infer':
+	data_path = {'source':source_input_path, 'target':target_input_path}
+	idx_out_path = {'source':source_out_path}
+
+	#bucket  (source, target)
+	infer_bucket = [(i*5, i*5+50) for i in range(1, 31)] # [(5, 55), (10, 60), ..., (150, 200)]
+	print('infer_bucket\n', infer_bucket,'\n')
+	
+	make_bucket_dataset(
+			data_path, 
+			idx_out_path, 
+			bucket_out_path, 
+			infer_bucket, 
+			bpe2idx, 
+			is_trainset=False
+		)
+
+
+
+'''
 # make trainset
 data_path = {'source':'./bpe_dataset/bpe_wmt17.en', 'target':'./bpe_dataset/bpe_wmt17.de'}
 idx_out_path = {'source':'./bpe_dataset/source_idx_wmt17_en.csv', 'target':'./bpe_dataset/target_idx_wmt17_de.csv'}
@@ -239,3 +311,4 @@ data_path = {'source':'./bpe_dataset/bpe_newstest2016.en', 'target':'./dataset/d
 idx_out_path = {'source':'./bpe_dataset/source_idx_newstest2016_en.csv'}
 bucket_out_path = './bpe_dataset/test_set_newstest2016/'
 make_bucket_dataset(data_path, idx_out_path, bucket_out_path, infer_bucket, bpe2idx, is_trainset=False)
+'''
