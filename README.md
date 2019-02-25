@@ -31,8 +31,8 @@ Attention Is All You Need
 
 ## Dataset
    * Preprocessed WMT17 en-de: http://data.statmt.org/wmt17/translation-task/preprocessed/ 
-      * train_set: corpus.tc.[en, de]
-      * dev_set: dev/newstest[2014, 2015, 2016].tc.[en, de]
+      * train_set: corpus.tc.[en, de]/corpus.tc.[en, de]
+      * dev_set: dev.tar/newstest[2014, 2015, 2016].tc.[en, de]
        
    * learn and apply [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
       * -num_merges: 35000
