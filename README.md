@@ -35,8 +35,8 @@ Attention Is All You Need
       * dev_set: dev/newstest[2014, 2015, 2016].tc.[en, de]
        
    * learn and apply [Sentences were encoded using byte-pair encoding](https://github.com/SeonbeomKim/Python-Bype_Pair_Encoding)
-      * num_merges: 35000
-      * final_voca_threshold: 50    
+      * -num_merges: 35000
+      * -final_voca_threshold: 50    
       * generated bpe files are in bpe_dataset/
       
 ## Code
