@@ -267,7 +267,7 @@ valid_dict_2014 = read_data_set(valid_path_2014, 'txt')
 test_dict_2015 = read_data_set(test_path_2015, 'txt')
 test_dict_2016 = read_data_set(test_path_2016, 'txt')
 
-train_set_2017 = bucket_data_helper.bucket_data(train_dict_2017, batch_token = 11000) # batch_token // len(sentence||target token) == batch_size
+train_set_2017 = bucket_data_helper.bucket_data(train_dict_2017, batch_token = 10000) # batch_token // len(sentence||target token) == batch_size
 valid_set_2014 = bucket_data_helper.bucket_data(valid_dict_2014, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
 test_set_2015 = bucket_data_helper.bucket_data(test_dict_2015, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
 test_set_2016 = bucket_data_helper.bucket_data(test_dict_2016, batch_token = 9000) # batch_token // len(sentence||target token) == batch_size
@@ -275,7 +275,9 @@ del train_dict_2017, valid_dict_2014, test_dict_2015, test_dict_2016
 
 
 print("Model read")
-sess = tf.Session()
+config = tf.ConfigProto()
+config.gpu_options.allow_growth=True
+sess = tf.Session(config=config)
 
 voca = read_voca(voca_path)
 bpe2idx, idx2bpe = make_bpe2idx(voca)
