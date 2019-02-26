@@ -60,42 +60,42 @@ Attention Is All You Need
          ```
           python make_dataset.py 
             -mode train 
-            -source_input_path path/bpe_wmt17.en [bpe applied document data]
-            -source_out_path path/source_idx_wmt17_en.csv [bpe idx data]
-            -target_input_path path/bpe_wmt17.de [bpe applied document data]
-            -target_out_path path/source_idx_wmt17_de.csv [bpe idx data
-            -bucket_out_path ./bpe_dataset/train_set_wmt17 [bucket trainset]
-            -voca_path voca_path/voca_file_name [bpe voca]
+            -source_input_path path/bpe_wmt17.en (source bpe applied document data)
+            -source_out_path path/source_idx_wmt17_en.csv (source bpe idx data)
+            -target_input_path path/bpe_wmt17.de (target bpe applied document data)
+            -target_out_path path/source_idx_wmt17_de.csv (target bpe idx data)
+            -bucket_out_path ./bpe_dataset/train_set_wmt17 (bucket trainset from source bpe idx data, target bpe idx data)
+            -voca_path voca_path/voca_file_name (bpe voca from bpe_learn.py)
          ```
          * make bucket valid_set newstest2014
          ```
           python make_dataset.py 
             -mode infer 
-            -source_input_path path/bpe_newstest2014.en [bpe applied document data]
-            -source_out_path path/source_idx_newstest2014_en.csv [bpe idx data]
-            -target_input_path path/dev.tar/newstest2014.tc.de [original raw data]
-            -bucket_out_path ./bpe_dataset/valid_set_newstest2014 [bucket validset]
-            -voca_path voca_path/voca_file_name [bpe voca]
+            -source_input_path path/bpe_newstest2014.en (source bpe applied document data)
+            -source_out_path path/source_idx_newstest2014_en.csv (source bpe idx data)
+            -target_input_path path/dev.tar/newstest2014.tc.de (target original raw data)
+            -bucket_out_path ./bpe_dataset/valid_set_newstest2014 (bucket validset from source bpe idx data, target original raw data)
+            -voca_path voca_path/voca_file_name (bpe voca from bpe_learn.py)
          ```
-         * make bucket valid_set newstest2015
-         ```
-          python make_dataset.py 
-            -mode infer 
-            -source_input_path path/bpe_newstest2015.en [bpe applied document data]
-            -source_out_path path/source_idx_newstest2015_en.csv [bpe idx data]
-            -target_input_path path/dev.tar/newstest2015.tc.de [original raw data]
-            -bucket_out_path ./bpe_dataset/valid_set_newstest2015 [bucket testset]
-            -voca_path voca_path/voca_file_name [bpe voca]
-         ```
-         * make bucket valid_set newstest2016
+         * make bucket test_set newstest2015
          ```
           python make_dataset.py 
             -mode infer 
-            -source_input_path path/bpe_newstest2016.en [bpe applied document data]
-            -source_out_path path/source_idx_newstest2016_en.csv [bpe idx data]
-            -target_input_path path/dev.tar/newstest2016.tc.de [original raw data]
-            -bucket_out_path ./bpe_dataset/valid_set_newstest2016 [bucket testset]
-            -voca_path voca_path/voca_file_name [bpe voca]
+            -source_input_path path/bpe_newstest2015.en (source bpe applied document data)
+            -source_out_path path/source_idx_newstest2015_en.csv (source bpe idx data)
+            -target_input_path path/dev.tar/newstest2015.tc.de (target original raw data)
+            -bucket_out_path ./bpe_dataset/test_set_newstest2015 (bucket testset from source bpe idx data, target original raw data)
+            -voca_path voca_path/voca_file_name (bpe voca from bpe_learn.py)
+         ```
+         * make bucket test_set newstest2016
+         ```
+          python make_dataset.py 
+            -mode infer 
+            -source_input_path path/bpe_newstest2016.en (source bpe applied document data)
+            -source_out_path path/source_idx_newstest2016_en.csv (source bpe idx data)
+            -target_input_path path/dev.tar/newstest2016.tc.de (target original raw data)
+            -bucket_out_path ./bpe_dataset/test_set_newstest2016 (bucket testset from source bpe idx data, target original raw data)
+            -voca_path voca_path/voca_file_name (bpe voca from bpe_learn.py)
          ```
    * translation_train.py
      * en -> de translation train, validation, test
@@ -104,8 +104,8 @@ Attention Is All You Need
         python translation_train.py 
           -train_path_2017 ./bpe_dataset/train_set_wmt17 
           -valid_path_2014 ./bpe_dataset/valid_set_newstest2014 
-          -test_path_2015 ./bpe_dataset/valid_set_newstest2015 
-          -test_path_2016 ./bpe_dataset/valid_set_newstest2016 
+          -test_path_2015 ./bpe_dataset/test_set_newstest2015 
+          -test_path_2016 ./bpe_dataset/test_set_newstest2016 
           -voca_path voca_path/voca_file_name
        ```
        
