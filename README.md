@@ -63,7 +63,7 @@ Attention Is All You Need
             -source_input_path path/bpe_wmt17.en (source bpe applied document data)
             -source_out_path path/source_idx_wmt17_en.csv (source bpe idx data)
             -target_input_path path/bpe_wmt17.de (target bpe applied document data)
-            -target_out_path path/source_idx_wmt17_de.csv (target bpe idx data)
+            -target_out_path path/target_idx_wmt17_de.csv (target bpe idx data)
             -bucket_out_path ./bpe_dataset/train_set_wmt17 (bucket trainset from source bpe idx data, target bpe idx data)
             -voca_path voca_path/voca_file_name (bpe voca from bpe_learn.py)
          ```
